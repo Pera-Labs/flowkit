@@ -1,0 +1,14 @@
+{
+  "name": "flowkit",
+  "version": "0.1.0",
+  "description": "Server-driven app flows for React Native (Pera Labs)",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": { "test": "node --test test/" },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*",
+    "@react-native-async-storage/async-storage": "*"
+  },
+  "license": "MIT"
+}
