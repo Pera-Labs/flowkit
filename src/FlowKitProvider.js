@@ -12,6 +12,10 @@ const DEFAULT_ENDPOINT = 'https://appscreenshots.studio/api';
 
 export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, children }) {
   const th = { ...DEFAULT_THEME, ...(theme || {}) };
+  const actionsRef = useRef(actions);
+  const screensRef = useRef(screens);
+  actionsRef.current = actions;
+  screensRef.current = screens;
   const registryKeys = Object.keys(screens);
   const hasTemplate = (id) => !!DEFAULT_SCREENS[id];
   const [boot, setBoot] = useState(null); // {config, state, entry}
@@ -26,7 +30,7 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       stateRef.current = fkState;
       const entry = computeEntry({ config, state: fkState, registryKeys, hasTemplate });
       if (!dead) setBoot({ config, entry });
-      // Arkaplan refresh — sonucu SADECE cache'e yazar, bu run'a uygulamaz.
+      // Background refresh — writes ONLY to cache; applied on next cold start, never mid-run.
       refreshConfig({ appId, endpoint, storage: AsyncStorage, currentRevision: config.revision || 0 });
     })();
     return () => { dead = true; };
@@ -39,7 +43,7 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       if (a.type.startsWith('flow.') ) {
         setBoot((b) => {
           if (!b || b.entry.flowId === 'main') return b;
-          const r = advance({ config: b.config, state: stateRef.current, at: b.entry, action: actionStr, registryKeys, hasTemplate });
+          const r = advance({ config: b.config, state: stateRef.current, at: b.entry, action: actionStr, registryKeys: Object.keys(screensRef.current), hasTemplate });
           if (r.stateChanges) {
             stateRef.current = { ...stateRef.current, ...r.stateChanges };
             AsyncStorage.setItem(`fk.${appId}.state`, JSON.stringify(stateRef.current)).catch(() => {});
@@ -49,23 +53,23 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
         return;
       }
       if (a.type === 'nav.goto') {
-        if (actions['nav.goto']) actions['nav.goto'](a.arg, payload);
+        if (actionsRef.current['nav.goto']) actionsRef.current['nav.goto'](a.arg, payload);
         setBoot((b) => b ? { ...b, entry: { flowId: 'main' } } : b);
         return;
       }
       if (a.type === 'custom') {
         const [name, rest] = a.arg ? [a.arg.split(':')[0], a.arg.split(':').slice(1).join(':')] : [null, null];
-        if (name && actions[name]) return actions[name](rest, payload, api); // api: handler flow.next dispatch edebilsin
+        if (name && actionsRef.current[name]) return actionsRef.current[name](rest, payload, api); // api: lets the handler dispatch flow.next
         return console.warn('[flowkit] no handler for', actionStr);
       }
-      const h = actions[a.type]; // purchase.buy, purchase.restore, ...
-      if (h) return h(a.arg, payload, api); // api: handler flow.next dispatch edebilsin
+      const h = actionsRef.current[a.type]; // purchase.buy, purchase.restore, ...
+      if (h) return h(a.arg, payload, api); // api: lets the handler dispatch flow.next
       console.warn('[flowkit] no handler for', actionStr);
     },
     config: boot && boot.config, entry: boot && boot.entry,
   }), [boot, appId]);
 
-  if (!boot) return null; // tek frame — cache/default okuma
+  if (!boot) return null; // single frame — reading cache/default
   const { config, entry } = boot;
 
   let content = children;

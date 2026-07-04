@@ -14,7 +14,7 @@ export function visibleScreens(config, flowId, registryKeys, hasTemplate) {
 }
 
 function enterFlow(config, flowId, state, registryKeys, hasTemplate, hops = 0) {
-  // hops: flow.goto zincir döngüsü guard'ı — 5'ten derinde main'e düş.
+  // hops: flow.goto chain cycle guard — fall back to main past depth 5.
   if (!flowId || flowId === 'main' || hops > 5) return { next: { flowId: 'main' }, completes: null };
   const flow = config.flows[flowId];
   if (!flow || !flow.enabled) return { next: { flowId: 'main' }, completes: null };
@@ -60,7 +60,7 @@ export function advance({ config, state, at, action, registryKeys, hasTemplate }
     const r = followEnd(config, flowId, state, registryKeys, hasTemplate);
     return { next: r.next, stateChanges: mark(flowId) };
   }
-  // flow.next (ve bilinmeyen action'lar next gibi davranır — asla kilitlenme)
+  // flow.next (and unknown actions behave like next — never get stuck)
   const ni = at.index + 1;
   if (ni < vis.length) return { next: { flowId, screenId: vis[ni], index: ni }, stateChanges: null };
   const r = followEnd(config, flowId, state, registryKeys, hasTemplate);

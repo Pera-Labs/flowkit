@@ -16,8 +16,8 @@ export async function loadInitialConfig({ appId, storage, defaultConfig }) {
   return defaultConfig;
 }
 
-// Arkaplan fetch: 304 -> no-op, 404 -> register + re-GET, hata -> no-op.
-// Başarıda cache'e yazar; UYGULAMAZ (bir sonraki cold start alır).
+// Background fetch: 304 -> no-op, 404 -> register + re-GET, error -> no-op.
+// On success writes to cache; NOT applied (picked up on next cold start).
 export async function refreshConfig({ appId, endpoint, storage, currentRevision, fetchFn }) {
   const f = fetchFn || fetch;
   const url = `${endpoint}/app-config/${appId}`;
