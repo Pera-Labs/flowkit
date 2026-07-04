@@ -209,7 +209,16 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
       return (
         <View style={[{ flexDirection: 'row', alignItems: 'flex-end', height, gap: 2 }, n.style]}>
           {aHeights.map((h, i) => (
-            <View key={i} style={{ flex: 1, height, justifyContent: 'flex-end', flexDirection: dual ? 'row' : 'column', gap: 1 }}>
+            // Inner container is ALWAYS flexDirection:'row' (never 'column'),
+            // even for the single-series case (where it holds just one bar).
+            // Lesson (v0.3.0 regression): a bar View can't have both `flex:1`
+            // and an explicit `height` on the SAME axis — Yoga resolves the
+            // conflict by growing the flex child to fill the cross axis,
+            // which silently flattened every single-series bar to full
+            // chart height. With flexDirection:'row', `flex:1` sizes width
+            // and `height:h` sizes height independently, so magnitudes render
+            // correctly for both single- and dual-series bars.
+            <View key={i} style={{ flex: 1, height, justifyContent: 'flex-end', flexDirection: 'row', gap: 1 }}>
               <View style={{ flex: 1, height: h, backgroundColor: aColor, borderRadius: 2, opacity: dual ? 0.85 : 1 }} />
               {dual ? <View style={{ flex: 1, height: bHeights[i] || 2, backgroundColor: bColor, borderRadius: 2, opacity: 0.85 }} /> : null}
             </View>
