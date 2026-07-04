@@ -56,6 +56,15 @@ test('advance: flow.skip -> complete + endAction', () => {
   assert.deepEqual(r.next, { flowId: 'paywall', screenId: 'pw', index: 0 });
   assert.deepEqual(r.stateChanges, { completed: { onboarding: true } });
 });
+test('advance: flow.back steps to previous screen', () => {
+  const r = advance({ config: cfg(), state: { completed: {} }, at: { flowId: 'onboarding', index: 1 }, action: 'flow.back', ...OPTS });
+  assert.deepEqual(r.next, { flowId: 'onboarding', screenId: 's1', index: 0 });
+  assert.equal(r.stateChanges, null);
+});
+test('advance: flow.back at first screen -> main (never negative index)', () => {
+  const r = advance({ config: cfg(), state: { completed: {} }, at: { flowId: 'onboarding', index: 0 }, action: 'flow.back', ...OPTS });
+  assert.deepEqual(r.next, { flowId: 'main' });
+});
 test('advance: paywall bitince main', () => {
   const r = advance({ config: cfg(), state: { completed: { onboarding: true } }, at: { flowId: 'paywall', index: 0 }, action: 'flow.next', ...OPTS });
   assert.deepEqual(r.next, { flowId: 'main' });

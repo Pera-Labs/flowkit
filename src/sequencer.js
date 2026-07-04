@@ -53,6 +53,11 @@ export function advance({ config, state, at, action, registryKeys, hasTemplate }
   const vis = visibleScreens(config, flowId, registryKeys, hasTemplate);
   const mark = (completes) => (completes && !((state.completed || {})[completes]) ? { completed: { ...(state.completed || {}), [completes]: true } } : null);
 
+  if (a.type === 'flow.back') {
+    const pi = at.index - 1;
+    if (pi >= 0) return { next: { flowId, screenId: vis[pi], index: pi }, stateChanges: null };
+    return { next: { flowId: 'main' }, stateChanges: null };
+  }
   if (a.type === 'flow.goto') {
     const r = enterFlow(config, a.arg, state, registryKeys, hasTemplate);
     return { next: r.next, stateChanges: mark(flowId) };

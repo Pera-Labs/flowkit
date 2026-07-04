@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { resolveTokens } from './resolve.js';
 import { resolveData } from './bind.js';
 import { evalWhen } from './when.js';
-import { containerStyle } from './styles.js';
+import { containerStyle, freqChartBars, signalChainItems, buttonDims } from './styles.js';
 
 const EMPTY_DATA = { S: {}, catalog: {}, rc: null, _ds: {} };
 
@@ -46,6 +46,14 @@ function StarRating({ max, value, color, emptyColor, onRate }) {
   );
 }
 
+// A container node (stack/row/card) that carries an `action` becomes
+// tap-advance: the whole block is pressable, no bespoke per-screen handler
+// needed (e.g. "tap anywhere to continue").
+function wrapPressable(content, n, onAction) {
+  if (!n.action) return content;
+  return <TouchableOpacity activeOpacity={0.85} onPress={() => onAction(n.action, n.payload)}>{content}</TouchableOpacity>;
+}
+
 function Node({ node, theme, onAction, data = EMPTY_DATA }) {
   if (!node || typeof node !== 'object') return null;
   if (node.when !== undefined && !evalWhen(node.when, data)) return null;
@@ -68,27 +76,28 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
     case 'stack': {
       // top-level screen stack fills; nested stacks size to content
       const base = containerStyle({ props: n.props, style: n.style });
-      return <View style={[{ flex: 1 }, base]}>{kids(n.children, theme, onAction, data)}</View>;
+      return wrapPressable(<View style={[{ flex: 1 }, base]}>{kids(n.children, theme, onAction, data)}</View>, n, onAction);
     }
     case 'row': {
       const base = containerStyle({ row: true, props: { align: 'center', ...(n.props || {}) }, style: n.style });
-      return <View style={base}>{kids(n.children, theme, onAction, data)}</View>;
+      return wrapPressable(<View style={base}>{kids(n.children, theme, onAction, data)}</View>, n, onAction);
     }
     case 'card': {
       const base = containerStyle({ props: n.props, style: n.style });
-      return (
+      return wrapPressable((
         <View style={[{ backgroundColor: theme.card, borderRadius: theme.radius, padding: 16 }, base]}>
           {kids(n.children, theme, onAction, data)}
         </View>
-      );
+      ), n, onAction);
     }
     case 'divider':
       return <View style={[{ height: 1, alignSelf: 'stretch', backgroundColor: theme.text2, opacity: 0.25, marginVertical: 8 }, n.style]} />;
     case 'iconTile': {
       const size = Number(n.size) || 44;
+      const glyphColor = n.iconColor || n.glyphColor || n.style?.color;
       return (
         <View style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: n.style?.backgroundColor || theme.card, alignItems: 'center', justifyContent: 'center' }, n.style]}>
-          {n.icon ? (/^https?:\/\//.test(String(n.icon)) ? <Image source={{ uri: n.icon }} style={{ width: size * 0.6, height: size * 0.6 }} /> : <Text style={{ fontSize: size * 0.5 }}>{String(n.icon)}</Text>) : null}
+          {n.icon ? (/^https?:\/\//.test(String(n.icon)) ? <Image source={{ uri: n.icon }} style={{ width: size * 0.6, height: size * 0.6 }} /> : <Text style={{ fontSize: size * 0.5, color: glyphColor }}>{String(n.icon)}</Text>) : null}
         </View>
       );
     }
@@ -107,12 +116,16 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
         </View>
       );
     }
-    case 'button': return (
-      <TouchableOpacity onPress={() => onAction(n.action)} activeOpacity={0.85}
-        style={[{ minHeight: 52, borderRadius: theme.radius, alignItems: 'center', justifyContent: 'center', marginTop: 10, backgroundColor: n.style?.backgroundColor || theme.accent }]}>
-        <Text style={{ color: n.style?.color || theme.accentText, fontSize: 17, fontWeight: '700' }}>{String(n.label ?? '')}</Text>
-      </TouchableOpacity>
-    );
+    case 'button': {
+      const variantStyle = buttonDims(n.variant || n.size);
+      return (
+        <TouchableOpacity onPress={() => onAction(n.action)} activeOpacity={0.85}
+          style={[{ minHeight: 52, borderRadius: theme.radius, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 20, backgroundColor: n.style?.backgroundColor || theme.accent }, variantStyle, n.style]}>
+          {n.icon && !n.label ? <Text style={{ fontSize: 18, color: n.style?.color || theme.accentText }}>{String(n.icon)}</Text>
+            : <Text style={{ color: n.style?.color || theme.accentText, fontSize: 17, fontWeight: '700' }}>{String(n.label ?? '')}</Text>}
+        </TouchableOpacity>
+      );
+    }
     case 'choiceGrid': return (
       <ScrollView style={{ maxHeight: 420 }}>
         {(n.items || []).map((it, i) => (
@@ -186,17 +199,42 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
       );
     }
     case 'freqChart': {
-      // Static v0.2.0 approximation: a row of bars sized from a numeric array.
-      // No animation/interaction — see README for the deferred animated version.
-      const values = Array.isArray(n.values) ? n.values : Array.isArray(n.bars) ? n.bars : [];
-      const max = Math.max(1, ...values.map((v) => Number(v) || 0));
+      // Static v0.3.0: single-series bars (v0.2.0 behavior, unchanged), or
+      // dual-series (`a`/`b`) overlaid bars for diff.json's "theirs vs yours"
+      // comparison — still no animation, just both curves visible at once.
       const height = Number(n.height) || 80;
+      const { aHeights, bHeights, dual } = freqChartBars({ values: n.values, bars: n.bars, a: n.a, b: n.b, height });
+      const aColor = n.aColor || theme.accent;
+      const bColor = n.bColor || theme.text2;
       return (
         <View style={[{ flexDirection: 'row', alignItems: 'flex-end', height, gap: 2 }, n.style]}>
-          {values.map((v, i) => {
-            const h = Math.max(2, (Math.max(0, Number(v) || 0) / max) * height);
-            return <View key={i} style={{ flex: 1, height: h, backgroundColor: theme.accent, borderRadius: 2 }} />;
-          })}
+          {aHeights.map((h, i) => (
+            <View key={i} style={{ flex: 1, height, justifyContent: 'flex-end', flexDirection: dual ? 'row' : 'column', gap: 1 }}>
+              <View style={{ flex: 1, height: h, backgroundColor: aColor, borderRadius: 2, opacity: dual ? 0.85 : 1 }} />
+              {dual ? <View style={{ flex: 1, height: bHeights[i] || 2, backgroundColor: bColor, borderRadius: 2, opacity: 0.85 }} /> : null}
+            </View>
+          ))}
+        </View>
+      );
+    }
+    case 'signalChain': {
+      // Horizontal row of icon-tile-like nodes joined by connectors, e.g.
+      // guitar -> amp -> pedal -> speaker (diff.json's orig_chain screens).
+      const items = signalChainItems(n.nodes, n.connector);
+      const tileSize = Number(n.tileSize) || 44;
+      return (
+        <View style={[{ flexDirection: 'row', alignItems: 'center' }, n.style]}>
+          {items.map(({ node: tile, connectorAfter }, i) => (
+            <React.Fragment key={i}>
+              <View style={{ alignItems: 'center' }}>
+                <View style={{ width: tileSize, height: tileSize, borderRadius: tileSize / 2, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: tileSize * 0.5, color: tile?.iconColor || tile?.glyphColor }}>{String(tile?.icon ?? '')}</Text>
+                </View>
+                {tile?.label ? <Text style={{ color: theme.text2, fontSize: 11, marginTop: 4 }}>{String(tile.label)}</Text> : null}
+              </View>
+              {connectorAfter ? <Text style={{ color: theme.text2, fontSize: 16, marginHorizontal: 6 }}>{connectorAfter}</Text> : null}
+            </React.Fragment>
+          ))}
         </View>
       );
     }

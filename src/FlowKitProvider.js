@@ -95,6 +95,19 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
         });
         return;
       }
+      if (a.type === 'nav.back') {
+        // Prefer a host-registered handler (e.g. custom native-stack pop); else
+        // fall back to stepping one screen back within the current flow, or
+        // to `main` if already at the first screen — no screen ever needs
+        // its own bespoke goBack handler just to wire a back button.
+        if (actionsRef.current['nav.back']) return actionsRef.current['nav.back'](a.arg, payload, api);
+        setBoot((b) => {
+          if (!b || b.entry.flowId === 'main') return b;
+          const r = advance({ config: b.config, state: stateRef.current, at: b.entry, action: 'flow.back', registryKeys: Object.keys(screensRef.current), hasTemplate });
+          return { ...b, entry: r.next };
+        });
+        return;
+      }
       if (a.type === 'nav.goto') {
         if (actionsRef.current['nav.goto']) actionsRef.current['nav.goto'](a.arg, payload);
         setBoot((b) => b ? { ...b, entry: { flowId: 'main' } } : b);

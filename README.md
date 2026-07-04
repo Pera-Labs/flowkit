@@ -10,7 +10,7 @@ unavailable. When no flow is active, it renders your app as-is.
 
 ```json
 "dependencies": {
-  "flowkit": "github:Pera-Labs/flowkit#v0.2.0"
+  "flowkit": "github:Pera-Labs/flowkit#v0.3.0"
 }
 ```
 
@@ -58,6 +58,7 @@ SDUI screen nodes carry an `action` string, dispatched via `dispatch(action, pay
 - `flow.skip` — mark the current flow complete and jump to its `endAction`.
 - `flow.goto:<flowId>` — jump directly to another flow.
 - `nav.goto` — calls `actions['nav.goto'](arg, payload)` if provided, then returns to `main`.
+- `nav.back` *(v0.3.0)* — calls `actions['nav.back'](arg, payload, api)` if the host registered one; otherwise steps back one screen in the current flow (or returns to `main` if already at the first screen). No screen needs its own bespoke goBack handler just to wire a back button.
 - `purchase.buy`, `purchase.restore` (and any other `purchase.*`) — calls `actions['purchase.buy'](arg, payload, api)`, etc. Unhandled purchase actions warn and no-op.
 - `custom:<name>` or `custom:<name>:<rest>` — calls `actions[<name>](rest, payload, api)`. Unhandled custom actions warn and no-op.
 
@@ -69,18 +70,27 @@ purchase before advancing the flow).
 ## SDUI node types
 
 `stack`, `row`, `card`, `divider`, `iconTile`, `text`, `image`, `button`, `choiceGrid`, `progressDots`, `spacer`, `badge`,
-`starRating`, `coverArt`, `priceOptionList`, `freqChart`, `knobGauge`.
+`starRating`, `coverArt`, `priceOptionList`, `freqChart`, `knobGauge`, `signalChain`.
 An unrecognized node type is skipped (renders nothing) and logs a `console.warn`.
 
-Container primitives (`stack`, `row`, `card`) accept `props: { gap, align: 'start'|'center'|'end', justify, pad, wrap }` and an explicit `style` object that merges last. `stack` is column, `row` is horizontal. `divider` is a thin rule; `iconTile` is a round emoji/image chip (`{ icon, size }`).
+Container primitives (`stack`, `row`, `card`) accept `props: { gap, align: 'start'|'center'|'end', justify, pad, wrap }` and an explicit `style` object that merges last. `stack` is column, `row` is horizontal. `divider` is a thin rule; `iconTile` is a round emoji/image chip (`{ icon, size, iconColor|glyphColor }` — glyph color is styleable as of v0.3.0, was hardcoded before).
+
+Any container node (`stack`, `row`, `card`) may also carry an `action` string *(v0.3.0)*: the whole block becomes pressable (tap-to-advance), calling `onAction(action, payload)` — no separate button needed for a "tap anywhere to continue" screen.
 
 ### Tier-2 primitives (v0.2.0)
 
 - **`starRating`** — a row of tappable stars (`props: { max, action, color, emptyColor, value? }`). Tapping star `i` calls `onAction(action, { value: i })`.
 - **`coverArt`** — an image (`src`/`uri`) with a deterministic hashed-color + initials fallback when no URL is given (`fallbackText`/`fallbackSeed`, `size`, `radius`).
 - **`priceOptionList`** — selectable rows rendered from a `source` array (typically `@rc.offerings`, already resolved to `[{id, title, price, perMonth, badge?}, ...]` by the binding layer). Tapping a row calls `onAction(action, item)`; `selectedId` highlights the matching row.
-- **`freqChart`** — **static v0.2.0 approximation.** A row of vertical bars sized from a numeric `values`/`bars` array. Not animated or interactive — the animated dual-curve reveal used by ToneAdapt's `diff`/`promise`/`adapting` screens is deferred to a later release (needs real component code, not a JSON-only template).
-- **`knobGauge`** — **static v0.2.0 approximation.** A labeled circle showing `value` + `label`. Not an animated radial dial — deferred, same reasoning as `freqChart`.
+- **`freqChart`** — static bars, no animation (see v0.3.0 below for dual series).
+- **`knobGauge`** — **static approximation.** A labeled circle showing `value` + `label`. Not an animated radial dial — still deferred.
+
+### v0.3.0 additions
+
+- **`freqChart` dual series** — pass `a`/`b` (numeric arrays) instead of/alongside `values`/`bars` to overlay two curves on one shared scale (`aColor`/`bColor` to style each). This is the "theirs vs yours" comparison ToneAdapt's `diff.json` needs. Still static/non-animated — both curves visible at once is the point, not motion. `values`/`bars` (single series) keep working unchanged; `a`/`b` win if both are present. Layout math lives in `freqChartBars()` (`src/styles.js`), unit-tested independent of React Native.
+- **`signalChain`** — a horizontal row of icon-tile-like nodes joined by connectors, e.g. guitar → amp → pedal → speaker (`orig_chain` screens). `{ nodes: [{ icon, label?, iconColor? }], connector?, tileSize? }`; `connector` defaults to `→` and is never rendered after the last node. Layout in `signalChainItems()` (`src/styles.js`).
+- **`button` size variants** — `variant: 'pill' | 'circle' | 'compact'` (also accepted as `size`). Default (`pill`/omitted) is the existing 52px-minHeight pill; `circle` is a fixed 44×44 round chip (for a small back button); `compact` shrinks the minHeight to 36. Dimensions come from `buttonDims()` (`src/styles.js`), unit-tested.
+- **`nav.back` action** — see Actions above.
 
 Deferred to a later release (need heavier native work or additional generic primitives not yet justified by enough screens): `searchInput`/`selectableList`/`stickyDock`/`noneRow` (gear screens), `signalChain`, `checkBadge`, `backBar`, `sectionLabel`, `tabContainer`.
 
