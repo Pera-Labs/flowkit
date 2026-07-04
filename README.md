@@ -65,8 +65,10 @@ purchase before advancing the flow).
 
 ## SDUI node types
 
-`stack`, `text`, `image`, `button`, `choiceGrid`, `progressDots`, `spacer`, `badge`.
+`stack`, `row`, `card`, `divider`, `iconTile`, `text`, `image`, `button`, `choiceGrid`, `progressDots`, `spacer`, `badge`.
 An unrecognized node type is skipped (renders nothing) and logs a `console.warn`.
+
+Container primitives (`stack`, `row`, `card`) accept `props: { gap, align: 'start'|'center'|'end', justify, pad, wrap }` and an explicit `style` object that merges last. `stack` is column, `row` is horizontal. `divider` is a thin rule; `iconTile` is a round emoji/image chip (`{ icon, size }`).
 
 ## Fail-safe behavior
 

@@ -1,16 +1,40 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { resolveTokens } from './resolve.js';
+import { containerStyle } from './styles.js';
+
+function kids(children, theme, onAction) {
+  return (children || []).map((c, i) => <Node key={i} node={c} theme={theme} onAction={onAction} />);
+}
 
 function Node({ node, theme, onAction }) {
   if (!node || typeof node !== 'object') return null;
   const n = resolveTokens(node, theme);
   switch (n.type) {
     case 'stack': {
-      const p = n.props || {};
+      // top-level screen stack fills; nested stacks size to content
+      const base = containerStyle({ props: n.props, style: n.style });
+      return <View style={[{ flex: 1 }, base]}>{kids(n.children, theme, onAction)}</View>;
+    }
+    case 'row': {
+      const base = containerStyle({ row: true, props: { align: 'center', ...(n.props || {}) }, style: n.style });
+      return <View style={base}>{kids(n.children, theme, onAction)}</View>;
+    }
+    case 'card': {
+      const base = containerStyle({ props: n.props, style: n.style });
       return (
-        <View style={{ flex: 1, padding: p.pad ?? 0, justifyContent: p.justify === 'center' ? 'center' : 'flex-start' }}>
-          {(n.children || []).map((c, i) => <Node key={i} node={c} theme={theme} onAction={onAction} />)}
+        <View style={[{ backgroundColor: theme.card, borderRadius: theme.radius, padding: 16 }, base]}>
+          {kids(n.children, theme, onAction)}
+        </View>
+      );
+    }
+    case 'divider':
+      return <View style={[{ height: 1, alignSelf: 'stretch', backgroundColor: theme.text2, opacity: 0.25, marginVertical: 8 }, n.style]} />;
+    case 'iconTile': {
+      const size = Number(n.size) || 44;
+      return (
+        <View style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: n.style?.backgroundColor || theme.card, alignItems: 'center', justifyContent: 'center' }, n.style]}>
+          {n.icon ? (/^https?:\/\//.test(String(n.icon)) ? <Image source={{ uri: n.icon }} style={{ width: size * 0.6, height: size * 0.6 }} /> : <Text style={{ fontSize: size * 0.5 }}>{String(n.icon)}</Text>) : null}
         </View>
       );
     }
