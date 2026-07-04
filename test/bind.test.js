@@ -30,6 +30,17 @@ test('resolveData: @rc.<path> resolves from data.rc', () => {
   assert.deepEqual(resolveData('@rc.offerings.0', data), { id: 'p1' });
 });
 
+test('resolveData: @app.<path> resolves from data.app (v0.4.0)', () => {
+  const data = { S: {}, catalog: {}, rc: null, app: { version: '1.2.3', buildNumber: 42 } };
+  assert.equal(resolveData('@app.version', data), '1.2.3');
+  assert.equal(resolveData('@app.buildNumber', data), 42);
+});
+
+test('resolveData: @flag.<path> resolves from data.flag (v0.4.0)', () => {
+  const data = { S: {}, catalog: {}, rc: null, flag: { hardPaywall: true } };
+  assert.equal(resolveData('@flag.hardPaywall', data), true);
+});
+
 test('resolveData: unknown prefix passes through unchanged', () => {
   const data = { S: {}, catalog: {}, rc: null };
   assert.equal(resolveData('@weird.thing', data), '@weird.thing');

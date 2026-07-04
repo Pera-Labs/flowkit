@@ -1,16 +1,80 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadInitialConfig, refreshConfig } from './configChain.js';
-import { computeEntry, advance } from './sequencer.js';
+import { computeEntry, advance, visibleScreens } from './sequencer.js';
 import { parseAction } from './parseAction.js';
 import { DEFAULT_CONFIG, DEFAULT_SCREENS, DEFAULT_THEME } from './defaults.js';
 import { SduiScreen } from './components.js';
+import { assembleAppInfo, versionLt } from './appinfo.js';
 
 const Ctx = createContext(null);
 export const useFlowKit = () => useContext(Ctx);
 const DEFAULT_ENDPOINT = 'https://appscreenshots.studio/api';
 
-export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, state, catalogs, dataSources, children }) {
+// Best-effort read of optional native modules (expo-application, expo-constants,
+// expo-updates) + __DEV__. Every module is peerOptional — a bare/managed app
+// missing one simply yields `undefined` for that field, never throws. Not unit
+// tested with node:test (needs a RN/Metro `require` runtime); esbuild-checked
+// only, same as the rest of components.js/FlowKitProvider.js.
+function readAppSources() {
+  const out = {};
+  try {
+    // eslint-disable-next-line global-require
+    const ea = require('expo-application');
+    if (ea && ea.nativeApplicationVersion != null) out.version = ea.nativeApplicationVersion;
+    if (ea && ea.nativeBuildVersion != null) out.buildNumber = ea.nativeBuildVersion;
+  } catch {}
+  try {
+    // eslint-disable-next-line global-require
+    const mod = require('expo-constants');
+    const ec = (mod && mod.default) || mod;
+    const cfgVersion = ec && ec.expoConfig && ec.expoConfig.version;
+    if (out.version === undefined && cfgVersion != null) out.version = cfgVersion;
+  } catch {}
+  try {
+    // eslint-disable-next-line global-require
+    const mod = require('expo-updates');
+    const eu = (mod && mod.default) || mod;
+    if (eu) {
+      out.updateId = eu.updateId ?? null;
+      out.channel = eu.channel ?? null;
+      out.runtimeVersion = eu.runtimeVersion ?? null;
+    }
+  } catch {}
+  try { out.isDev = typeof __DEV__ !== 'undefined' ? !!__DEV__ : false; } catch { out.isDev = false; }
+  try { out.isReview = typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_APP_STORE_REVIEW === '1'; } catch {}
+  return out;
+}
+
+// Best-effort dynamic-require action for expo-updates' checkForUpdate/fetch/reload
+// dance ("Yeni Sürümü Çek" in ToneAdapt). No-op + warn if expo-updates is absent.
+async function builtinCheckUpdate() {
+  try {
+    // eslint-disable-next-line global-require
+    const mod = require('expo-updates');
+    const eu = (mod && mod.default) || mod;
+    if (!eu || !eu.checkForUpdateAsync) return console.warn('[flowkit] app.checkUpdate: expo-updates not available');
+    const check = await eu.checkForUpdateAsync();
+    if (!check || !check.isAvailable) return;
+    await eu.fetchUpdateAsync();
+    await eu.reloadAsync();
+  } catch (err) {
+    console.warn('[flowkit] app.checkUpdate failed:', err && err.message);
+  }
+}
+
+function builtinOpenLink(url) {
+  if (!url) return;
+  try {
+    // eslint-disable-next-line global-require
+    const { Linking } = require('react-native');
+    Linking.openURL(url).catch((err) => console.warn('[flowkit] app.openLink failed:', err && err.message));
+  } catch (err) {
+    console.warn('[flowkit] app.openLink: react-native Linking not available', err && err.message);
+  }
+}
+
+export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, state, catalogs, dataSources, appInfo, children }) {
   const th = { ...DEFAULT_THEME, ...(theme || {}) };
   const actionsRef = useRef(actions);
   const screensRef = useRef(screens);
@@ -30,6 +94,10 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
   // not re-fire resolvers.
   const dsRef = useRef(dataSources);
   dsRef.current = dataSources;
+  const appInfoRef = useRef(appInfo);
+  appInfoRef.current = appInfo;
+  // Native-module reads happen once per mount — they don't change across a session.
+  const sources = useMemo(() => readAppSources(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let dead = false;
@@ -38,7 +106,17 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       try { const raw = await AsyncStorage.getItem(`fk.${appId}.state`); if (raw) fkState = JSON.parse(raw) || fkState; } catch {}
       const config = await loadInitialConfig({ appId, storage: AsyncStorage, defaultConfig: defaultConfig || DEFAULT_CONFIG(appId) });
       stateRef.current = fkState;
-      const entry = computeEntry({ config, state: fkState, registryKeys, hasTemplate });
+      let entry = computeEntry({ config, state: fkState, registryKeys, hasTemplate });
+      // v0.4.0: minAppVersion gating — server-driven "please update" flow, fail-open
+      // (missing/unreadable version, missing `gate` flow, or no visible gate screens
+      // -> proceed as normal, never blocks the app on a malformed config).
+      if (config.minAppVersion && config.flows && config.flows.gate && config.flows.gate.enabled) {
+        const info = assembleAppInfo(sources, appInfoRef.current);
+        if (versionLt(info.version, config.minAppVersion)) {
+          const vis = visibleScreens(config, 'gate', registryKeys, hasTemplate);
+          if (vis.length) entry = { flowId: 'gate', screenId: vis[0], index: 0 };
+        }
+      }
       if (!dead) setBoot({ config, entry });
       // Background refresh — writes ONLY to cache; applied on next cold start, never mid-run.
       refreshConfig({ appId, endpoint, storage: AsyncStorage, currentRevision: config.revision || 0 });
@@ -72,12 +150,21 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
     return () => { dead = true; };
   }, [appId]);
 
+  const appData = useMemo(() => {
+    const src = { ...sources, configRevision: (boot && boot.config && boot.config.revision != null) ? boot.config.revision : null };
+    return assembleAppInfo(src, appInfoRef.current);
+  }, [sources, appInfo, boot && boot.config && boot.config.revision]);
+
+  const flagData = useMemo(() => (boot && boot.config && boot.config.flags) || {}, [boot && boot.config]);
+
   const data = useMemo(() => ({
     S: state ?? {},
     catalog: catalogs ?? {},
     rc: dsData.rc ?? null,
+    app: appData,
+    flag: flagData,
     _ds: dsStatus,
-  }), [state, catalogs, dsData, dsStatus]);
+  }), [state, catalogs, dsData, dsStatus, appData, flagData]);
 
   const api = useMemo(() => ({
     dispatch: (actionStr, payload) => {
@@ -111,6 +198,26 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       if (a.type === 'nav.goto') {
         if (actionsRef.current['nav.goto']) actionsRef.current['nav.goto'](a.arg, payload);
         setBoot((b) => b ? { ...b, entry: { flowId: 'main' } } : b);
+        return;
+      }
+      if (a.type.startsWith('app.')) {
+        // Host handler always wins; otherwise SDK best-effort built-in, fail-safe (never throws/crashes).
+        const custom = actionsRef.current[a.type];
+        if (custom) return custom(a.arg, payload, api);
+        if (a.type === 'app.checkUpdate') { builtinCheckUpdate(); return; }
+        if (a.type === 'app.resetOnboarding') {
+          stateRef.current = { completed: {} };
+          AsyncStorage.setItem(`fk.${appId}.state`, JSON.stringify(stateRef.current)).catch(() => {});
+          setBoot((b) => b ? { ...b, entry: computeEntry({ config: b.config, state: stateRef.current, registryKeys: Object.keys(screensRef.current), hasTemplate }) } : b);
+          return;
+        }
+        if (a.type === 'app.openReview') return builtinOpenLink(appInfoRef.current && appInfoRef.current.reviewUrl);
+        if (a.type === 'app.contactSupport') {
+          const email = appInfoRef.current && appInfoRef.current.supportEmail;
+          return builtinOpenLink(email ? `mailto:${email}` : null);
+        }
+        if (a.type === 'app.openLink') return builtinOpenLink(a.arg);
+        console.warn('[flowkit] no handler for', actionStr);
         return;
       }
       if (a.type === 'custom') {

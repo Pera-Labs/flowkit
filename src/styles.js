@@ -31,6 +31,8 @@ export const KNOWN_TYPES = new Set([
   'starRating', 'coverArt', 'priceOptionList', 'freqChart', 'knobGauge',
   // v0.3.0
   'signalChain',
+  // v0.4.0 — settings primitives
+  'settingsRow', 'versionRow', 'linkRow', 'toggleRow',
 ]);
 
 export function isKnownType(t) { return KNOWN_TYPES.has(t); }
@@ -67,4 +69,17 @@ export function buttonDims(variant) {
   if (variant === 'circle') return { minHeight: 44, width: 44, borderRadius: 22, paddingHorizontal: 0 };
   if (variant === 'compact') return { minHeight: 36, borderRadius: 12, paddingHorizontal: 14 };
   return null;
+}
+
+// --- v0.4.0 pure helpers (settings primitives) ---
+
+// formatVersionLabel({version, buildNumber}) -> "Version X (build Y)", or
+// just "Version X" when buildNumber is null/undefined (fail-safe: a build
+// number that couldn't be read never blanks the whole row). Missing/null
+// version -> null (caller renders nothing rather than "Version null").
+export function formatVersionLabel(app) {
+  const a = app || {};
+  if (a.version == null || a.version === '') return null;
+  if (a.buildNumber == null || a.buildNumber === '') return `Version ${a.version}`;
+  return `Version ${a.version} (build ${a.buildNumber})`;
 }

@@ -38,6 +38,36 @@ test('evalWhen: never throws even with malformed data', () => {
   assert.doesNotThrow(() => evalWhen('@S.x === true', undefined));
 });
 
+test('evalWhen: @app.* and @flag.* bindings (v0.4.0)', () => {
+  const data = { S: {}, catalog: {}, rc: null, app: { buildNumber: 42, isReview: true }, flag: { hardPaywall: true } };
+  assert.equal(evalWhen('@app.isReview', data), true);
+  assert.equal(evalWhen('!@app.isReview', data), false);
+  assert.equal(evalWhen('@flag.hardPaywall', data), true);
+  assert.equal(evalWhen('@flag.missing', data), false);
+});
+
+test('evalWhen: numeric comparison operators (v0.4.0)', () => {
+  const data = { S: {}, catalog: {}, rc: null, app: { buildNumber: 42 } };
+  assert.equal(evalWhen('@app.buildNumber >= 42', data), true);
+  assert.equal(evalWhen('@app.buildNumber >= 43', data), false);
+  assert.equal(evalWhen('@app.buildNumber > 41', data), true);
+  assert.equal(evalWhen('@app.buildNumber > 42', data), false);
+  assert.equal(evalWhen('@app.buildNumber <= 42', data), true);
+  assert.equal(evalWhen('@app.buildNumber <= 41', data), false);
+  assert.equal(evalWhen('@app.buildNumber < 43', data), true);
+  assert.equal(evalWhen('@app.buildNumber < 42', data), false);
+});
+
+test('evalWhen: numeric comparison fail-open when resolved/literal is not a number', () => {
+  const data = { S: {}, catalog: {}, rc: null, app: { buildNumber: null } };
+  assert.equal(evalWhen('@app.buildNumber >= 42', data), true); // null -> NaN -> fail open
+  assert.equal(evalWhen('@app.missing >= 42', {}), true);
+});
+
+test('evalWhen: existing === / !== forms unaffected by new operator support', () => {
+  assert.equal(evalWhen("@S.tier === 'gold'", { S: { tier: 'gold' }, catalog: {}, rc: null }), true);
+});
+
 test('evalWhen: fail-open on mismatched-quote literal', () => {
   // Opening quote is `'`, closing is `"` — not a clean matching pair.
   assert.equal(evalWhen(`@S.x === 'gold"`, { S: { x: 'gold' }, catalog: {}, rc: null }), true);

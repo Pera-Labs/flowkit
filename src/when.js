@@ -8,7 +8,7 @@ import { getPath } from './bind.js';
 
 // `when` bindings are conventionally shorthand flags living on app state:
 // `@isPro` means `@S.isPro`, `@flay.enabled` means `@S.flay.enabled`.
-// Bindings explicitly prefixed with S./catalog./rc. still address that source.
+// Bindings explicitly prefixed with S./catalog./rc./app./flag. still address that source.
 function resolveBinding(atPath, data) {
   const body = atPath.slice(1); // drop leading @
   const dot = body.indexOf('.');
@@ -18,10 +18,14 @@ function resolveBinding(atPath, data) {
   if (prefix === 'S') return rest === '' ? d.S : getPath(d.S, rest);
   if (prefix === 'catalog') return rest === '' ? d.catalog : getPath(d.catalog, rest);
   if (prefix === 'rc') return rest === '' ? d.rc : getPath(d.rc, rest);
+  if (prefix === 'app') return rest === '' ? d.app : getPath(d.app, rest); // v0.4.0
+  if (prefix === 'flag') return rest === '' ? d.flag : getPath(d.flag, rest); // v0.4.0
   return getPath(d.S, body); // unprefixed shorthand -> flag lives on state
 }
 
-const EXPR_RE = /^(!)?(@[\w.]+)(?:\s*(===|!==)\s*(.+))?$/;
+// v0.4.0: numeric comparison operators alongside ===/!==, e.g. "@app.buildNumber >= 42".
+// Order matters — >= / <= must be tried before the bare >/< alternatives.
+const EXPR_RE = /^(!)?(@[\w.]+)(?:\s*(===|!==|>=|<=|>|<)\s*(.+))?$/;
 
 const FAIL_OPEN = Symbol('when-literal-fail-open');
 
@@ -55,8 +59,19 @@ export function evalWhen(expr, data) {
     if (op) {
       const lit = parseLiteral(litRaw);
       if (lit === FAIL_OPEN) return true;
-      const eq = resolved === lit;
-      return op === '===' ? eq : !eq;
+      if (op === '===' || op === '!==') {
+        const eq = resolved === lit;
+        return op === '===' ? eq : !eq;
+      }
+      // Numeric comparison — missing/non-numeric resolved or literal value fails open.
+      if (resolved === null || resolved === undefined) return true;
+      const rn = Number(resolved);
+      const ln = Number(lit);
+      if (!Number.isFinite(rn) || !Number.isFinite(ln)) return true;
+      if (op === '>=') return rn >= ln;
+      if (op === '<=') return rn <= ln;
+      if (op === '>') return rn > ln;
+      return rn < ln;
     }
     const truthy = !!resolved;
     return bang ? !truthy : truthy;

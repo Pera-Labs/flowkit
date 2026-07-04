@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { resolveTokens } from './resolve.js';
 import { resolveData } from './bind.js';
 import { evalWhen } from './when.js';
-import { containerStyle, freqChartBars, signalChainItems, buttonDims } from './styles.js';
+import { containerStyle, freqChartBars, signalChainItems, buttonDims, formatVersionLabel } from './styles.js';
 
-const EMPTY_DATA = { S: {}, catalog: {}, rc: null, _ds: {} };
+const EMPTY_DATA = { S: {}, catalog: {}, rc: null, app: {}, flag: {}, _ds: {} };
 
 function kids(children, theme, onAction, data) {
   return (children || []).map((c, i) => <Node key={i} node={c} theme={theme} onAction={onAction} data={data} />);
@@ -27,6 +27,18 @@ function initialsOf(seed) {
   const parts = s.split(/\s+/).filter(Boolean);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+// Own component (not inline in Node's switch) so its useState obeys the
+// rules-of-hooks regardless of which SDUI node type renders at a given tree position.
+function ToggleRow({ label, initial, textColor, style, onToggle }) {
+  const [on, setOn] = useState(initial);
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 }, style]}>
+      <Text style={{ color: textColor, fontSize: 16 }}>{String(label ?? '')}</Text>
+      <Switch value={on} onValueChange={(v) => { setOn(v); onToggle(v); }} />
+    </View>
+  );
 }
 
 function StarRating({ max, value, color, emptyColor, onRate }) {
@@ -258,6 +270,52 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
           </View>
           {n.label ? <Text style={{ color: theme.text2, fontSize: 11, marginTop: 4 }}>{String(n.label)}</Text> : null}
         </View>
+      );
+    }
+    // --- v0.4.0 settings primitives ---
+    case 'settingsRow': {
+      // { icon, label, value?, action?, when? } — icon left, label + optional
+      // right-hand value/chevron, whole row tappable when `action` is set.
+      const row = (
+        <View style={[{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 }, n.style]}>
+          {n.icon ? <Text style={{ fontSize: 20, color: n.iconColor || theme.text }}>{String(n.icon)}</Text> : null}
+          <Text style={{ flex: 1, color: theme.text, fontSize: 16 }}>{String(n.label ?? '')}</Text>
+          {n.value != null ? <Text style={{ color: theme.text2, fontSize: 14 }}>{String(n.value)}</Text> : null}
+          {n.action ? <Text style={{ color: theme.text2, fontSize: 18 }}>{'›'}</Text> : null}
+        </View>
+      );
+      return n.action ? <TouchableOpacity activeOpacity={0.7} onPress={() => onAction(n.action, n.payload)}>{row}</TouchableOpacity> : row;
+    }
+    case 'versionRow': {
+      // Zero-config — reads @app.version/@app.buildNumber straight from data,
+      // never from resolved template props (n.text is not user-authorable here).
+      const label = formatVersionLabel(data && data.app);
+      if (!label) return null;
+      return (
+        <View style={[{ paddingVertical: 14 }, n.style]}>
+          <Text style={{ color: theme.text2, fontSize: 13 }}>{label}</Text>
+        </View>
+      );
+    }
+    case 'linkRow': {
+      // { label, url } -> app.openLink:<url>
+      return (
+        <TouchableOpacity activeOpacity={0.7} onPress={() => onAction(`app.openLink:${n.url}`)}
+          style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 }, n.style]}>
+          <Text style={{ color: theme.text, fontSize: 16 }}>{String(n.label ?? '')}</Text>
+          <Text style={{ color: theme.text2, fontSize: 18 }}>{'›'}</Text>
+        </TouchableOpacity>
+      );
+    }
+    case 'toggleRow': {
+      // { label, flagPath, action } — initial value read from @flag.<flagPath>
+      // (studio default); user taps flip local render state and call the
+      // host's action with the new value so it can persist/override.
+      const p = n.props || n;
+      const initial = !!(p.flagPath ? (data && data.flag ? data.flag[p.flagPath] : undefined) : p.value);
+      return (
+        <ToggleRow label={p.label} initial={initial} textColor={theme.text} style={n.style}
+          onToggle={(v) => onAction(p.action, { value: v })} />
       );
     }
     default:

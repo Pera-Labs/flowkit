@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { containerStyle, KNOWN_TYPES, isKnownType, freqChartBars, signalChainItems, buttonDims } from '../src/styles.js';
+import { containerStyle, KNOWN_TYPES, isKnownType, freqChartBars, signalChainItems, buttonDims, formatVersionLabel } from '../src/styles.js';
 
 test('column by default', () => {
   const s = containerStyle({});
@@ -49,6 +49,23 @@ test('KNOWN_TYPES includes v0.2.0 tier-2 primitives', () => {
 });
 test('KNOWN_TYPES includes v0.3.0 primitives', () => {
   assert.ok(isKnownType('signalChain'));
+});
+test('KNOWN_TYPES includes v0.4.0 settings primitives', () => {
+  for (const t of ['settingsRow', 'versionRow', 'linkRow', 'toggleRow']) {
+    assert.ok(isKnownType(t), `missing ${t}`);
+  }
+});
+
+test('formatVersionLabel: version + buildNumber', () => {
+  assert.equal(formatVersionLabel({ version: '1.0.9', buildNumber: 42 }), 'Version 1.0.9 (build 42)');
+});
+test('formatVersionLabel: buildNumber null -> version only', () => {
+  assert.equal(formatVersionLabel({ version: '1.0.9', buildNumber: null }), 'Version 1.0.9');
+});
+test('formatVersionLabel: version missing -> null (caller renders nothing)', () => {
+  assert.equal(formatVersionLabel({ version: null, buildNumber: 42 }), null);
+  assert.equal(formatVersionLabel({}), null);
+  assert.equal(formatVersionLabel(null), null);
 });
 
 test('freqChartBars: single series (values) sizes to height', () => {

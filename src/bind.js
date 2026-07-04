@@ -28,6 +28,8 @@ export function resolveData(v, data) {
     if (prefix === 'S') root = d.S;
     else if (prefix === 'catalog') root = d.catalog;
     else if (prefix === 'rc') root = d.rc;
+    else if (prefix === 'app') root = d.app; // v0.4.0 — built-in @app.* metadata
+    else if (prefix === 'flag') root = d.flag; // v0.4.0 — config.flags
     else return v; // unknown prefix — leave as-is
     const resolved = rest === '' ? root : getPath(root, rest);
     return resolved === undefined ? v : resolved;
