@@ -42,3 +42,8 @@ test('KNOWN_TYPES includes v0.2.0 tier-1 primitives', () => {
   }
   assert.equal(isKnownType('bogus'), false);
 });
+test('KNOWN_TYPES includes v0.2.0 tier-2 primitives', () => {
+  for (const t of ['starRating', 'coverArt', 'priceOptionList', 'freqChart', 'knobGauge']) {
+    assert.ok(isKnownType(t), `missing ${t}`);
+  }
+});

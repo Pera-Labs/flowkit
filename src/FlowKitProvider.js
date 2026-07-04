@@ -10,7 +10,7 @@ const Ctx = createContext(null);
 export const useFlowKit = () => useContext(Ctx);
 const DEFAULT_ENDPOINT = 'https://appscreenshots.studio/api';
 
-export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, children }) {
+export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, state, catalogs, dataSources, children }) {
   const th = { ...DEFAULT_THEME, ...(theme || {}) };
   const actionsRef = useRef(actions);
   const screensRef = useRef(screens);
@@ -20,6 +20,10 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
   const hasTemplate = (id) => !!DEFAULT_SCREENS[id];
   const [boot, setBoot] = useState(null); // {config, state, entry}
   const stateRef = useRef({ completed: {} });
+  // Async dataSources (e.g. RevenueCat offerings): { [key]: value|null }, plus
+  // per-key status so SduiScreen can gate loadingState/errorState sub-templates.
+  const [dsData, setDsData] = useState({});
+  const [dsStatus, setDsStatus] = useState({});
 
   useEffect(() => {
     let dead = false;
@@ -35,6 +39,39 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
     })();
     return () => { dead = true; };
   }, [appId]);
+
+  // Resolve each registered dataSource once on boot. A rejected resolver
+  // produces an error state for that key, never a crash.
+  useEffect(() => {
+    let dead = false;
+    const entries = Object.entries(dataSources || {});
+    if (entries.length === 0) return undefined;
+    setDsStatus((s) => {
+      const next = { ...s };
+      for (const [key] of entries) next[key] = 'pending';
+      return next;
+    });
+    entries.forEach(async ([key, ds]) => {
+      try {
+        const value = await ds.resolver();
+        if (dead) return;
+        setDsData((d) => ({ ...d, [key]: value }));
+        setDsStatus((s) => ({ ...s, [key]: 'ready' }));
+      } catch (err) {
+        if (dead) return;
+        console.warn('[flowkit] dataSource failed:', key, err && err.message);
+        setDsStatus((s) => ({ ...s, [key]: 'error' }));
+      }
+    });
+    return () => { dead = true; };
+  }, [dataSources]);
+
+  const data = useMemo(() => ({
+    S: state ?? {},
+    catalog: catalogs ?? {},
+    rc: dsData.rc ?? null,
+    _ds: dsStatus,
+  }), [state, catalogs, dsData, dsStatus]);
 
   const api = useMemo(() => ({
     dispatch: (actionStr, payload) => {
@@ -80,7 +117,7 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       content = <Native flowkit={api} />;
     } else {
       const template = def.template || DEFAULT_SCREENS[entry.screenId];
-      content = <SduiScreen template={template} theme={th} onAction={(s, p) => api.dispatch(s, p)} />;
+      content = <SduiScreen template={template} theme={th} onAction={(s, p) => api.dispatch(s, p)} data={data} />;
     }
   }
   return <Ctx.Provider value={api}>{content}</Ctx.Provider>;

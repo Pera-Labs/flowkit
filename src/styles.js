@@ -27,6 +27,8 @@ export const KNOWN_TYPES = new Set([
   'stack', 'text', 'image', 'spacer', 'badge', 'progressDots', 'button', 'choiceGrid',
   // v0.2.0 tier-1
   'row', 'card', 'divider', 'iconTile',
+  // v0.2.0 tier-2 (static/tap-only approximations — see MASTER-SPEC section 2)
+  'starRating', 'coverArt', 'priceOptionList', 'freqChart', 'knobGauge',
 ]);
 
 export function isKnownType(t) { return KNOWN_TYPES.has(t); }
