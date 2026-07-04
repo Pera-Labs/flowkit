@@ -37,3 +37,9 @@ test('evalWhen: never throws even with malformed data', () => {
   assert.doesNotThrow(() => evalWhen('@S.x === true', null));
   assert.doesNotThrow(() => evalWhen('@S.x === true', undefined));
 });
+
+test('evalWhen: fail-open on mismatched-quote literal', () => {
+  // Opening quote is `'`, closing is `"` — not a clean matching pair.
+  assert.equal(evalWhen(`@S.x === 'gold"`, { S: { x: 'gold' }, catalog: {}, rc: null }), true);
+  assert.equal(evalWhen(`@S.x === 'gold"`, { S: { x: 'nope' }, catalog: {}, rc: null }), true);
+});

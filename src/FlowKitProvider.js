@@ -24,6 +24,12 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
   // per-key status so SduiScreen can gate loadingState/errorState sub-templates.
   const [dsData, setDsData] = useState({});
   const [dsStatus, setDsStatus] = useState({});
+  // Latest dataSources kept in a ref so the resolver effect (below) can read
+  // the current value without depending on the object's identity — a host
+  // re-render that recreates an inline `dataSources={{...}}` literal must
+  // not re-fire resolvers.
+  const dsRef = useRef(dataSources);
+  dsRef.current = dataSources;
 
   useEffect(() => {
     let dead = false;
@@ -44,7 +50,7 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
   // produces an error state for that key, never a crash.
   useEffect(() => {
     let dead = false;
-    const entries = Object.entries(dataSources || {});
+    const entries = Object.entries(dsRef.current || {});
     if (entries.length === 0) return undefined;
     setDsStatus((s) => {
       const next = { ...s };
@@ -64,7 +70,7 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       }
     });
     return () => { dead = true; };
-  }, [dataSources]);
+  }, [appId]);
 
   const data = useMemo(() => ({
     S: state ?? {},

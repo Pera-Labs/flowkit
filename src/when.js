@@ -23,6 +23,8 @@ function resolveBinding(atPath, data) {
 
 const EXPR_RE = /^(!)?(@[\w.]+)(?:\s*(===|!==)\s*(.+))?$/;
 
+const FAIL_OPEN = Symbol('when-literal-fail-open');
+
 function parseLiteral(raw) {
   const s = raw.trim();
   if (s === 'true') return true;
@@ -30,8 +32,15 @@ function parseLiteral(raw) {
   if (s === 'null') return null;
   if (s === 'undefined') return undefined;
   if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
-  if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
-    return s.slice(1, -1);
+  const startsQuoted = s.startsWith("'") || s.startsWith('"');
+  if (startsQuoted || s.endsWith("'") || s.endsWith('"')) {
+    // Only a cleanly matched pair of quotes is a valid string literal.
+    // A mismatched/unterminated quote (e.g. "it's") is unparseable —
+    // fail open rather than comparing the raw quoted token.
+    if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
+      return s.slice(1, -1);
+    }
+    return FAIL_OPEN;
   }
   return s; // bare word — treat as literal string
 }
@@ -45,6 +54,7 @@ export function evalWhen(expr, data) {
     const resolved = resolveBinding(binding, data);
     if (op) {
       const lit = parseLiteral(litRaw);
+      if (lit === FAIL_OPEN) return true;
       const eq = resolved === lit;
       return op === '===' ? eq : !eq;
     }
