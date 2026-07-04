@@ -5,7 +5,7 @@ import { computeEntry, advance, visibleScreens } from './sequencer.js';
 import { parseAction } from './parseAction.js';
 import { DEFAULT_CONFIG, DEFAULT_SCREENS, DEFAULT_THEME } from './defaults.js';
 import { SduiScreen } from './components.js';
-import { assembleAppInfo, versionLt } from './appinfo.js';
+import { assembleAppInfo, versionLt, safeExternalUrl } from './appinfo.js';
 
 const Ctx = createContext(null);
 export const useFlowKit = () => useContext(Ctx);
@@ -65,10 +65,12 @@ async function builtinCheckUpdate() {
 
 function builtinOpenLink(url) {
   if (!url) return;
+  const safe = safeExternalUrl(url);
+  if (!safe) return console.warn('[flowkit] app.openLink: rejected URL scheme', url);
   try {
     // eslint-disable-next-line global-require
     const { Linking } = require('react-native');
-    Linking.openURL(url).catch((err) => console.warn('[flowkit] app.openLink failed:', err && err.message));
+    Linking.openURL(safe).catch((err) => console.warn('[flowkit] app.openLink failed:', err && err.message));
   } catch (err) {
     console.warn('[flowkit] app.openLink: react-native Linking not available', err && err.message);
   }

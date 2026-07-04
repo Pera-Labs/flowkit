@@ -64,7 +64,14 @@ export function evalWhen(expr, data) {
         return op === '===' ? eq : !eq;
       }
       // Numeric comparison — missing/non-numeric resolved or literal value fails open.
+      // Number(resolved) alone isn't enough: Number('')===0 and Number(false)===0
+      // would silently compare against 0/1 instead of failing open, so the
+      // resolved value must itself be a finite number or a string that's a
+      // full numeric literal before coercion is trusted.
       if (resolved === null || resolved === undefined) return true;
+      const isNumericValue = typeof resolved === 'number'
+        || (typeof resolved === 'string' && /^-?\d+(\.\d+)?$/.test(resolved.trim()));
+      if (!isNumericValue) return true;
       const rn = Number(resolved);
       const ln = Number(lit);
       if (!Number.isFinite(rn) || !Number.isFinite(ln)) return true;

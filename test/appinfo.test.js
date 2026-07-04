@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleAppInfo, versionLt } from '../src/appinfo.js';
+import { assembleAppInfo, versionLt, safeExternalUrl } from '../src/appinfo.js';
 
 test('assembleAppInfo: merges sources with fallback to null', () => {
   const info = assembleAppInfo({ version: '1.2.3', buildNumber: '42' }, {});
@@ -73,4 +73,27 @@ test('versionLt: missing/garbage input fails open to false', () => {
 test('versionLt: non-numeric segments treated as 0', () => {
   // 'abc' -> [0] vs '1.0.0' -> [1,0,0]: 0 < 1 -> true
   assert.equal(versionLt('abc', '1.0.0'), true);
+});
+
+test('safeExternalUrl: allows https/http/mailto/tel', () => {
+  assert.equal(safeExternalUrl('https://example.com/review'), 'https://example.com/review');
+  assert.equal(safeExternalUrl('HTTP://example.com'), 'HTTP://example.com');
+  assert.equal(safeExternalUrl('mailto:support@example.com'), 'mailto:support@example.com');
+  assert.equal(safeExternalUrl('tel:+15551234567'), 'tel:+15551234567');
+});
+
+test('safeExternalUrl: rejects unsafe/unknown schemes', () => {
+  assert.equal(safeExternalUrl('javascript:alert(1)'), null);
+  assert.equal(safeExternalUrl('file:///etc/passwd'), null);
+  assert.equal(safeExternalUrl('custom-scheme://foo'), null);
+});
+
+test('safeExternalUrl: rejects whitespace/control-char injection and non-strings', () => {
+  assert.equal(safeExternalUrl('https://example.com/ javascript:alert(1)'), null);
+  assert.equal(safeExternalUrl('  https://example.com'), null);
+  assert.equal(safeExternalUrl('https://example.com\n'), null);
+  assert.equal(safeExternalUrl(''), null);
+  assert.equal(safeExternalUrl(null), null);
+  assert.equal(safeExternalUrl(undefined), null);
+  assert.equal(safeExternalUrl(42), null);
 });

@@ -64,6 +64,16 @@ test('evalWhen: numeric comparison fail-open when resolved/literal is not a numb
   assert.equal(evalWhen('@app.missing >= 42', {}), true);
 });
 
+test('evalWhen: numeric comparison fail-open on empty-string/boolean resolved value (M-1)', () => {
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: '' }, catalog: {}, rc: null }), true);
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: false }, catalog: {}, rc: null }), true);
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: 'abc' }, catalog: {}, rc: null }), true);
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: '7' }, catalog: {}, rc: null }), true);
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: '3' }, catalog: {}, rc: null }), false);
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: 7 }, catalog: {}, rc: null }), true);
+  assert.equal(evalWhen('@S.x >= 5', { S: { x: 3 }, catalog: {}, rc: null }), false);
+});
+
 test('evalWhen: existing === / !== forms unaffected by new operator support', () => {
   assert.equal(evalWhen("@S.tier === 'gold'", { S: { tier: 'gold' }, catalog: {}, rc: null }), true);
 });

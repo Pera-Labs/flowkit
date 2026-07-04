@@ -81,6 +81,12 @@ relevant Expo module — missing module → warns and no-ops, never crashes:
 - `app.contactSupport` — opens `mailto:<appInfo.supportEmail>` via `Linking`.
 - `app.openLink:<url>` — opens `<url>` via `Linking`.
 
+All three pass the URL through a scheme allowlist (`https:`, `http:`, `mailto:`,
+`tel:`, case-insensitive; no control chars/whitespace) before calling
+`Linking.openURL` — a rejected scheme warns and no-ops instead of opening.
+This matters because these URLs are server-driven config (studio-editable),
+not developer-authored literals.
+
 ## `@app.*` — built-in app metadata (v0.4.0)
 
 `FlowKitProvider` assembles a built-in `app` data source at boot, resolved

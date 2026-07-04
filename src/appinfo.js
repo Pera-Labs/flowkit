@@ -53,3 +53,27 @@ export function versionLt(a, b) {
     return false;
   }
 }
+
+// Schemes allowed through `app.openLink`/`app.openReview`/`app.contactSupport`.
+// These URLs are server-driven config (studio-editable), not developer-authored
+// literals, so they're allowlisted before ever reaching `Linking.openURL`.
+const ALLOWED_SCHEMES = ['https:', 'http:', 'mailto:', 'tel:'];
+
+// safeExternalUrl(url) -> the url if its scheme is allowlisted and it contains
+// no control characters/whitespace, else `null`. Pure, never throws.
+export function safeExternalUrl(url) {
+  try {
+    if (typeof url !== 'string') return null;
+    const trimmed = url.trim();
+    if (trimmed === '' || trimmed !== url) return null; // leading/trailing whitespace rejected
+    // eslint-disable-next-line no-control-regex
+    if (/[\x00-\x1f\x7f\s]/.test(trimmed)) return null; // control chars or embedded whitespace
+    const m = /^([a-zA-Z][a-zA-Z0-9+.-]*:)/.exec(trimmed);
+    if (!m) return null;
+    const scheme = m[1].toLowerCase();
+    if (!ALLOWED_SCHEMES.includes(scheme)) return null;
+    return trimmed;
+  } catch {
+    return null;
+  }
+}
