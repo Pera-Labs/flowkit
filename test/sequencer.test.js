@@ -69,3 +69,11 @@ test('advance: boş flow (tüm ekranlar gizli) -> endAction', () => {
   const c = cfg({ screens: { s1: { kind: 'sdui', hidden: true }, s2: { kind: 'sdui', hidden: true }, g1: { kind: 'native', hidden: true, ref: 'gear' } } });
   assert.deepEqual(computeEntry({ config: c, state: { completed: {} }, ...OPTS }), { flowId: 'paywall', screenId: 'pw', index: 0 });
 });
+test('visible: empty screens map + bundled defaults still render', () => {
+  const c = cfg(); c.screens = {};
+  assert.deepEqual(visibleScreens(c, 'onboarding', [], (id) => ['s1','s2'].includes(id)), ['s1', 's2']);
+});
+test('entry: server seed shape (screens {}) with defaults -> onboarding first screen', () => {
+  const c = cfg(); c.screens = {};
+  assert.deepEqual(computeEntry({ config: c, state: { completed: {} }, registryKeys: [], hasTemplate: (id) => ['s1','s2','pw'].includes(id) }), { flowId: 'onboarding', screenId: 's1', index: 0 });
+});

@@ -5,7 +5,8 @@ export function visibleScreens(config, flowId, registryKeys, hasTemplate) {
   if (!flow || !Array.isArray(flow.screens)) return [];
   const reg = new Set(registryKeys || []);
   return flow.screens.filter((id) => {
-    const def = config.screens[id];
+    // Sparse config: fall back to a bare sdui def when the id is missing but a bundled template exists.
+    const def = config.screens[id] || ((hasTemplate && hasTemplate(id)) ? { kind: 'sdui' } : null);
     if (!def || def.hidden) return false;
     if (def.kind === 'native') return reg.has(def.ref);
     if (def.kind === 'sdui') return !!def.template || (hasTemplate && hasTemplate(id));

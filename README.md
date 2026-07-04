@@ -10,7 +10,7 @@ unavailable. When no flow is active, it renders your app as-is.
 
 ```json
 "dependencies": {
-  "flowkit": "github:Pera-Labs/flowkit#v0.1.0"
+  "flowkit": "github:Pera-Labs/flowkit#v0.1.1"
 }
 ```
 

@@ -14,21 +14,25 @@ function Node({ node, theme, onAction }) {
         </View>
       );
     }
-    case 'text': return <Text style={n.style}>{n.text}</Text>;
+    case 'text': return <Text style={n.style}>{String(n.text ?? '')}</Text>;
     case 'image': return <Image source={{ uri: n.src }} style={[{ width: '100%', height: 220, borderRadius: theme.radius }, n.style]} resizeMode="cover" />;
     case 'spacer': return <View style={{ height: n.size || 16 }} />;
-    case 'badge': return <View style={[{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }, n.style]}><Text style={{ color: n.style?.color || theme.accentText, fontWeight: '800', fontSize: 12 }}>{n.text}</Text></View>;
-    case 'progressDots': return (
-      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16 }}>
-        {Array.from({ length: n.total || 0 }).map((_, i) => (
-          <View key={i} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === n.at ? theme.accent : theme.text2 }} />
-        ))}
-      </View>
-    );
+    case 'badge': return <View style={[{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }, n.style]}><Text style={{ color: n.style?.color || theme.accentText, fontWeight: '800', fontSize: 12 }}>{String(n.text ?? '')}</Text></View>;
+    case 'progressDots': {
+      // clamp total: reject non-numeric/negative/absurdly large SDUI payloads
+      const total = Math.max(0, Math.min(50, parseInt(n.total, 10) || 0));
+      return (
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16 }}>
+          {Array.from({ length: total }).map((_, i) => (
+            <View key={i} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === n.at ? theme.accent : theme.text2 }} />
+          ))}
+        </View>
+      );
+    }
     case 'button': return (
       <TouchableOpacity onPress={() => onAction(n.action)} activeOpacity={0.85}
         style={[{ minHeight: 52, borderRadius: theme.radius, alignItems: 'center', justifyContent: 'center', marginTop: 10, backgroundColor: n.style?.backgroundColor || theme.accent }]}>
-        <Text style={{ color: n.style?.color || theme.accentText, fontSize: 17, fontWeight: '700' }}>{n.label}</Text>
+        <Text style={{ color: n.style?.color || theme.accentText, fontSize: 17, fontWeight: '700' }}>{String(n.label ?? '')}</Text>
       </TouchableOpacity>
     );
     case 'choiceGrid': return (
