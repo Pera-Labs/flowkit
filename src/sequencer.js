@@ -47,6 +47,34 @@ export function computeEntry({ config, state, registryKeys, hasTemplate }) {
   return { flowId: 'main' };
 }
 
+// nav.goto:<screenId> — resolve a screen id to an entry {flowId, screenId, index},
+// searching every flow's `screens` array (not just the current one). Unlike
+// flow.next/flow.back (which only ever land on a *visible* screen),
+// nav.goto is an explicit jump: a screen that's DEFINED in some flow resolves
+// even if `hidden: true` (an explicit target overrides the visibility filter
+// that only exists to skip screens during normal forward/back sequencing).
+// Returns null when the id isn't defined in any flow, or is defined but
+// unrenderable (native ref missing from the registry, sdui with no
+// template/bundled default) — never throws, caller no-ops on null.
+export function gotoScreen(config, screenId, registryKeys, hasTemplate) {
+  if (!screenId || !config || !config.flows) return null;
+  const reg = new Set(registryKeys || []);
+  for (const flowId of Object.keys(config.flows)) {
+    const flow = config.flows[flowId];
+    if (!flow || !Array.isArray(flow.screens) || !flow.screens.includes(screenId)) continue;
+    const vis = visibleScreens(config, flowId, registryKeys, hasTemplate);
+    const visIndex = vis.indexOf(screenId);
+    if (visIndex !== -1) return { flowId, screenId, index: visIndex };
+    // Hidden (or otherwise filtered out of `vis`) — still resolve if renderable.
+    const def = config.screens[screenId] || ((hasTemplate && hasTemplate(screenId)) ? { kind: 'sdui' } : null);
+    if (!def) return null;
+    if (def.kind === 'native' && !reg.has(def.ref)) return null;
+    if (def.kind === 'sdui' && !(def.template || (hasTemplate && hasTemplate(screenId)))) return null;
+    return { flowId, screenId, index: flow.screens.indexOf(screenId) };
+  }
+  return null;
+}
+
 export function advance({ config, state, at, action, registryKeys, hasTemplate }) {
   const a = parseAction(action) || { type: 'flow.next', arg: null };
   const flowId = at.flowId;

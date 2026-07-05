@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadInitialConfig, refreshConfig } from './configChain.js';
-import { computeEntry, advance, visibleScreens } from './sequencer.js';
+import { computeEntry, advance, visibleScreens, gotoScreen } from './sequencer.js';
 import { screenRender, tabScreens } from './shell.js';
 import { parseAction } from './parseAction.js';
 import { DEFAULT_CONFIG, DEFAULT_SCREENS, DEFAULT_THEME } from './defaults.js';
@@ -203,8 +203,23 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
         return;
       }
       if (a.type === 'nav.goto') {
+        // v0.6.0 — `nav.goto:<screenId>` jumps straight to that screen, in
+        // any flow (including `main`) — explicit cross-flow navigation, so
+        // it's never blocked by the `entry.flowId === 'main'` no-op guard
+        // that flow.*/nav.back use. A host handler (if registered) still
+        // runs first, same precedence as nav.back/nav.tab; it doesn't
+        // suppress the built-in jump — a host might use it for analytics,
+        // not necessarily to own navigation.
         if (actionsRef.current['nav.goto']) actionsRef.current['nav.goto'](a.arg, payload);
-        setBoot((b) => b ? { ...b, entry: { flowId: 'main' } } : b);
+        setBoot((b) => {
+          if (!b) return b;
+          const entryFor = gotoScreen(b.config, a.arg, Object.keys(screensRef.current), hasTemplate);
+          if (!entryFor) {
+            console.warn('[flowkit] nav.goto: screen not found or unrenderable:', a.arg);
+            return b;
+          }
+          return { ...b, entry: entryFor };
+        });
         return;
       }
       if (a.type === 'nav.tab') {

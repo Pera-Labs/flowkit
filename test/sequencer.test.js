@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visibleScreens, computeEntry, advance } from '../src/sequencer.js';
+import { visibleScreens, computeEntry, advance, gotoScreen } from '../src/sequencer.js';
 
 const cfg = (over = {}) => ({
   schemaVersion: 1, appId: 'a', revision: 1,
@@ -85,4 +85,30 @@ test('visible: empty screens map + bundled defaults still render', () => {
 test('entry: server seed shape (screens {}) with defaults -> onboarding first screen', () => {
   const c = cfg(); c.screens = {};
   assert.deepEqual(computeEntry({ config: c, state: { completed: {} }, registryKeys: [], hasTemplate: (id) => ['s1','s2','pw'].includes(id) }), { flowId: 'onboarding', screenId: 's1', index: 0 });
+});
+
+// v0.6.0 — nav.goto:<screenId>
+test('gotoScreen: screen in a non-current flow resolves {flowId, screenId, index}', () => {
+  assert.deepEqual(gotoScreen(cfg(), 'pw', OPTS.registryKeys, OPTS.hasTemplate), { flowId: 'paywall', screenId: 'pw', index: 0 });
+});
+test('gotoScreen: second screen of a flow resolves with its visible index', () => {
+  assert.deepEqual(gotoScreen(cfg(), 's2', OPTS.registryKeys, OPTS.hasTemplate), { flowId: 'onboarding', screenId: 's2', index: 1 });
+});
+test('gotoScreen: screen in main flow resolves against main', () => {
+  const c = cfg({ flows: { main: { enabled: true, type: 'app', screens: ['home', 'settings'] } }, screens: { home: { kind: 'sdui', template: { type: 'stack' } }, settings: { kind: 'sdui', template: { type: 'stack' } } } });
+  assert.deepEqual(gotoScreen(c, 'settings', OPTS.registryKeys, OPTS.hasTemplate), { flowId: 'main', screenId: 'settings', index: 1 });
+});
+test('gotoScreen: unknown screenId -> null', () => {
+  assert.equal(gotoScreen(cfg(), 'nope', OPTS.registryKeys, OPTS.hasTemplate), null);
+});
+test('gotoScreen: hidden screen still resolves (explicit jump overrides visibility filter)', () => {
+  const c = cfg({ screens: { s2: { kind: 'sdui', hidden: true, template: { type: 'stack' } } } });
+  assert.deepEqual(gotoScreen(c, 's2', OPTS.registryKeys, OPTS.hasTemplate), { flowId: 'onboarding', screenId: 's2', index: 1 });
+});
+test('gotoScreen: native screen whose ref is missing from the registry -> null', () => {
+  assert.equal(gotoScreen(cfg(), 'g1', [], OPTS.hasTemplate), null);
+});
+test('gotoScreen: sdui screen with no explicit template and no bundled default -> null', () => {
+  const c = cfg({ flows: { main: { enabled: true, type: 'app', screens: ['orphan'] } } });
+  assert.equal(gotoScreen(c, 'orphan', OPTS.registryKeys, () => false), null);
 });

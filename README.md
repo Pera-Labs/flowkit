@@ -10,7 +10,7 @@ unavailable. When no flow is active, it renders your app as-is.
 
 ```json
 "dependencies": {
-  "flowkit": "github:Pera-Labs/flowkit#v0.5.0"
+  "flowkit": "github:Pera-Labs/flowkit#v0.6.0"
 }
 ```
 
@@ -97,7 +97,7 @@ SDUI screen nodes carry an `action` string, dispatched via `dispatch(action, pay
 - `flow.next` — advance to the next screen in the current flow.
 - `flow.skip` — mark the current flow complete and jump to its `endAction`.
 - `flow.goto:<flowId>` — jump directly to another flow.
-- `nav.goto` — calls `actions['nav.goto'](arg, payload)` if provided, then returns to `main`.
+- `nav.goto:<screenId>` *(v0.6.0)* — jumps straight to that screen id, in any flow (searches every flow's `screens` array, including `main`). Resolves even when the current entry is already `main` — unlike `flow.*`/`nav.back`, `nav.goto` is never blocked by the "already at main" no-op guard. A screen id that's defined in a flow resolves even if `hidden: true` (an explicit jump overrides the visibility filter that only exists to skip screens during normal forward/back sequencing); an id that isn't defined anywhere, or is defined but unrenderable (missing native ref in the registry, sdui with no template/bundled default), warns and no-ops — the app stays on its current screen. Calls `actions['nav.goto'](arg, payload)` first if the host registered one (e.g. for analytics); that handler doesn't suppress the built-in jump.
 - `nav.back` *(v0.3.0)* — calls `actions['nav.back'](arg, payload, api)` if the host registered one; otherwise steps back one screen in the current flow (or returns to `main` if already at the first screen). No screen needs its own bespoke goBack handler just to wire a back button.
 - `nav.tab:<id>` *(v0.5.0)* — switches the active tab in a `flows.main.type: 'tabs'` shell. Calls `actions['nav.tab'](arg, payload, api)` if the host registered one, otherwise the Provider switches its own active-tab state.
 - `purchase.buy`, `purchase.restore` (and any other `purchase.*`) — calls `actions['purchase.buy'](arg, payload, api)`, etc. Unhandled purchase actions warn and no-op.
