@@ -327,3 +327,33 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
 export function SduiScreen({ template, theme, onAction, data = EMPTY_DATA }) {
   return <View style={{ flex: 1, backgroundColor: theme.bg }}><Node node={template} theme={theme} onAction={onAction} data={data} /></View>;
 }
+
+// v0.5.0 — bottom tab bar for `flows.main.type === 'tabs'`. `tabs` is an
+// ordered list of { id, label?, icon? } (icon/label sourced from the
+// screen's config meta by the caller). `active` is the current tab id;
+// `onTab(id)` fires on tap. Renders nothing but its own children when there
+// are 0 or 1 tabs — never renders a bar for a single-screen "shell".
+export function TabShell({ tabs = [], active, onTab, theme, children }) {
+  const th = theme || {};
+  return (
+    <View style={{ flex: 1, backgroundColor: th.bg }}>
+      <View style={{ flex: 1 }}>{children}</View>
+      {tabs.length > 1 ? (
+        <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: th.text2, backgroundColor: th.card }}>
+          {tabs.map((t) => {
+            const isActive = t.id === active;
+            return (
+              <TouchableOpacity key={t.id} activeOpacity={0.7} onPress={() => onTab(t.id)}
+                style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+                {t.icon ? <Text style={{ fontSize: 20, color: isActive ? th.accent : th.text2 }}>{String(t.icon)}</Text> : null}
+                <Text style={{ fontSize: 11, marginTop: 2, color: isActive ? th.accent : th.text2, fontWeight: isActive ? '700' : '400' }}>
+                  {String(t.label ?? t.id ?? '')}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}

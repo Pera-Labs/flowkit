@@ -2,9 +2,10 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadInitialConfig, refreshConfig } from './configChain.js';
 import { computeEntry, advance, visibleScreens } from './sequencer.js';
+import { screenRender, tabScreens } from './shell.js';
 import { parseAction } from './parseAction.js';
 import { DEFAULT_CONFIG, DEFAULT_SCREENS, DEFAULT_THEME } from './defaults.js';
-import { SduiScreen } from './components.js';
+import { SduiScreen, TabShell } from './components.js';
 import { assembleAppInfo, versionLt, safeExternalUrl } from './appinfo.js';
 
 const Ctx = createContext(null);
@@ -85,6 +86,10 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
   const registryKeys = Object.keys(screens);
   const hasTemplate = (id) => !!DEFAULT_SCREENS[id];
   const [boot, setBoot] = useState(null); // {config, state, entry}
+  // v0.5.0 — active tab id for `flows.main.type === 'tabs'`. Resolved against
+  // the current tab list on every render (see `activeId` below), so a stale
+  // value (e.g. a tab that got hidden) never sticks.
+  const [activeTab, setActiveTab] = useState(null);
   const stateRef = useRef({ completed: {} });
   // Async dataSources (e.g. RevenueCat offerings): { [key]: value|null }, plus
   // per-key status so SduiScreen can gate loadingState/errorState sub-templates.
@@ -202,6 +207,13 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
         setBoot((b) => b ? { ...b, entry: { flowId: 'main' } } : b);
         return;
       }
+      if (a.type === 'nav.tab') {
+        // v0.5.0 — switch the active tab in a `flows.main.type: 'tabs'` shell.
+        // Host handler (if any) wins, same pattern as nav.back.
+        if (actionsRef.current['nav.tab']) return actionsRef.current['nav.tab'](a.arg, payload, api);
+        setActiveTab(a.arg);
+        return;
+      }
       if (a.type.startsWith('app.')) {
         // Host handler always wins; otherwise SDK best-effort built-in, fail-safe (never throws/crashes).
         const custom = actionsRef.current[a.type];
@@ -237,15 +249,50 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
   if (!boot) return null; // single frame — reading cache/default
   const { config, entry } = boot;
 
-  let content = children;
+  // v0.5.0 — render ANY resolved (mode, screenId, ref/template) into a node.
+  // 'skip' (unknown/missing screen) renders null — fail-safe, never throws.
+  const renderResolved = (r) => {
+    if (!r) return null;
+    if (r.mode === 'native') {
+      const Native = screens[r.ref];
+      return Native ? <Native flowkit={api} state={state} /> : null;
+    }
+    if (r.mode === 'sdui') {
+      const template = r.template || DEFAULT_SCREENS[r.screenId];
+      if (!template) return null;
+      return <SduiScreen template={template} theme={th} onAction={(s, p) => api.dispatch(s, p)} data={data} />;
+    }
+    return null; // skip
+  };
+
+  let content;
   if (entry.flowId !== 'main') {
-    const def = config.screens[entry.screenId] || { kind: 'sdui' };
-    if (def.kind === 'native' && screens[def.ref]) {
-      const Native = screens[def.ref];
-      content = <Native flowkit={api} />;
+    // onboarding / paywall / gate / any custom flow — same full-flow path as `main`.
+    content = renderResolved(screenRender(config, entry, registryKeys, hasTemplate));
+  } else {
+    const main = config.flows && config.flows.main;
+    if (main && main.type === 'tabs') {
+      const tabIds = tabScreens(config, registryKeys, hasTemplate);
+      if (tabIds.length) {
+        const tabs = tabIds.map((id) => {
+          const def = config.screens[id] || {};
+          return { id, label: def.tabLabel || def.label || id, icon: def.tabIcon || def.icon };
+        });
+        const activeId = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
+        content = (
+          <TabShell tabs={tabs} active={activeId} onTab={(id) => api.dispatch(`nav.tab:${id}`)} theme={th}>
+            {renderResolved(screenRender(config, { flowId: 'main', screenId: activeId }, registryKeys, hasTemplate))}
+          </TabShell>
+        );
+      } else {
+        // No visible tabs — nothing usable to render; stay safe.
+        content = null;
+      }
     } else {
-      const template = def.template || DEFAULT_SCREENS[entry.screenId];
-      content = <SduiScreen template={template} theme={th} onAction={(s, p) => api.dispatch(s, p)} data={data} />;
+      const vis = visibleScreens(config, 'main', registryKeys, hasTemplate);
+      content = vis.length
+        ? renderResolved(screenRender(config, { flowId: 'main', screenId: vis[0] }, registryKeys, hasTemplate))
+        : (children ?? null); // v0.5.0 — `children` is now a fallback-only path: no usable `main` flow config at all.
     }
   }
   return <Ctx.Provider value={api}>{content}</Ctx.Provider>;

@@ -10,7 +10,7 @@ unavailable. When no flow is active, it renders your app as-is.
 
 ```json
 "dependencies": {
-  "flowkit": "github:Pera-Labs/flowkit#v0.4.0"
+  "flowkit": "github:Pera-Labs/flowkit#v0.5.0"
 }
 ```
 
@@ -21,16 +21,50 @@ import { FlowKitProvider } from 'flowkit';
 
 export default function App() {
   return (
-    <FlowKitProvider appId="my-app" version="1.0.0" actions={{ 'purchase.buy': (arg) => buy(arg) }}>
-      <MainApp />
+    <FlowKitProvider
+      appId="my-app" version="1.0.0"
+      screens={{ HomeScreen, GearScreen }}
+      actions={{ 'purchase.buy': (arg) => buy(arg) }}
+    >
+      <FallbackScreen />
     </FlowKitProvider>
   );
 }
 ```
 
-`FlowKitProvider` renders the current onboarding/paywall screen while a flow
-is active, and renders `children` (your app) once the flow resolves to
-`main`.
+## v0.5.0 — full-flow app shell (behavior change)
+
+**Before v0.5.0**, `FlowKitProvider` only rendered onboarding/paywall-style
+flows; once `entry.flowId` resolved to `main` it rendered `children` — the
+host app's own router — verbatim. Native and SDUI screens in `main` had to
+be spliced into that router by hand.
+
+**As of v0.5.0**, the Provider renders **every** flow, including `main`:
+
+- Any screen (in any flow) is rendered from `config.screens[screenId]`:
+  `kind: 'sdui'` → `<SduiScreen>` (explicit `template`, or a bundled
+  `DEFAULT_SCREENS` template); `kind: 'native'` → the matching component from
+  the `screens` registry prop, called as `<Component flowkit={api}
+  state={state} />`. An unresolvable screen (missing ref, no template) is
+  skipped and renders `null` — it never throws.
+- If `flows.main.type === 'tabs'`, the Provider renders a bottom **`TabShell`**:
+  tabs are `main.screens` filtered through the same visibility rules as any
+  other flow (hidden screens, unregistered native refs dropped), each tab's
+  `id` looked up in `config.screens[id]` for an optional `tabLabel`/`label`
+  and `tabIcon`/`icon`. Tapping a tab, or dispatching `nav.tab:<id>`, switches
+  the active tab (Provider-held state) without re-entering the flow sequencer.
+- If `flows.main.type !== 'tabs'`, `main`'s first visible screen renders the
+  same way any other flow's screen would.
+- **`children` is now a fallback only** — rendered solely when `main` (and no
+  tabs) resolves to zero visible screens. A host that already passes
+  `children` and has any usable `main`/tabs config now gets the full-flow
+  render instead of `children`; that's the intended v0.5.0 fix, not a
+  regression. A host with an empty/absent `main` config keeps working exactly
+  as before (renders `children`), so upgrading never crashes an app.
+- Native registry components already received `props.flowkit`; they now also
+  receive `props.state` (the same `state` prop passed to `FlowKitProvider`,
+  used for SDUI `@S.*` bindings) so a shared app-state object can drive both
+  SDUI and native screens without a separate plumbing path.
 
 ## Props
 
@@ -40,9 +74,10 @@ is active, and renders `children` (your app) once the flow resolves to
 | `version` | string | yes | App version, sent with config fetches (server can gate by version). |
 | `endpoint` | string | no | Config API base URL. Defaults to the public FlowKit endpoint (`https://appscreenshots.studio/api`). |
 | `theme` | object | no | Partial theme overrides, merged over `DEFAULT_THEME`. |
-| `screens` | object | no | Map of `id -> React component` for native (non-SDUI) screens, and a registry of ids the sequencer treats as "available". |
+| `screens` | object | no | Map of `id -> React component` for native (non-SDUI) screens, and a registry of ids the sequencer treats as "available". *(v0.5.0)* These now render for every flow, including `main`; each gets `props.flowkit` + `props.state`. |
 | `actions` | object | no | Map of action-name -> handler for `nav.goto`, `purchase.*`, and `custom:*` actions. |
 | `defaultConfig` | object | no | Overrides the built-in `DEFAULT_CONFIG(appId)` used when no cached/remote config is available. |
+| `children` | node | no | *(v0.5.0)* Fallback-only: rendered when `main` (or its tabs) has zero visible/usable screens. With a populated `main` flow, `children` is not rendered — see "full-flow app shell" above. |
 | `state` | object | no | *(v0.2.0)* Live app state, exposed to templates as `@S.*`. |
 | `catalogs` | object | no | *(v0.2.0)* Static list data (e.g. gear catalogs), exposed as `@catalog.*`. |
 | `dataSources` | object | no | *(v0.2.0)* Map of `key -> { resolver: async () => value, refetchOn? }`. Resolved once on boot; exposed as `@rc.*` (see below). A rejected resolver sets an error state, it never crashes the app. |
@@ -60,6 +95,7 @@ SDUI screen nodes carry an `action` string, dispatched via `dispatch(action, pay
 - `flow.goto:<flowId>` — jump directly to another flow.
 - `nav.goto` — calls `actions['nav.goto'](arg, payload)` if provided, then returns to `main`.
 - `nav.back` *(v0.3.0)* — calls `actions['nav.back'](arg, payload, api)` if the host registered one; otherwise steps back one screen in the current flow (or returns to `main` if already at the first screen). No screen needs its own bespoke goBack handler just to wire a back button.
+- `nav.tab:<id>` *(v0.5.0)* — switches the active tab in a `flows.main.type: 'tabs'` shell. Calls `actions['nav.tab'](arg, payload, api)` if the host registered one, otherwise the Provider switches its own active-tab state.
 - `purchase.buy`, `purchase.restore` (and any other `purchase.*`) — calls `actions['purchase.buy'](arg, payload, api)`, etc. Unhandled purchase actions warn and no-op.
 - `custom:<name>` or `custom:<name>:<rest>` — calls `actions[<name>](rest, payload, api)`. Unhandled custom actions warn and no-op.
 - `app.*` *(v0.4.0)* — see below.

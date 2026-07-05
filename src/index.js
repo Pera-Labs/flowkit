@@ -5,3 +5,5 @@ export { resolveData, getPath } from './bind.js';
 export { evalWhen } from './when.js';
 export { assembleAppInfo, versionLt } from './appinfo.js';
 export { formatVersionLabel } from './styles.js';
+export { TabShell } from './components.js';
+export { screenRender, tabScreens } from './shell.js';
