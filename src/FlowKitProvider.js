@@ -262,7 +262,9 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       if (!template) return null;
       return <SduiScreen template={template} theme={th} onAction={(s, p) => api.dispatch(s, p)} data={data} />;
     }
-    return null; // skip
+    // skip — misregistered native ref, or sdui screen with no template/bundled default.
+    console.warn(`[flowkit] screen "${r.screenId}" skipped (no template/native component) — check config/registry`);
+    return null;
   };
 
   let content;
@@ -285,8 +287,11 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
           </TabShell>
         );
       } else {
-        // No visible tabs — nothing usable to render; stay safe.
-        content = null;
+        // No visible tabs (config typo, all hidden, or all native refs missing
+        // from the registry) — fall back to `children`, same safety net as the
+        // non-tabs branch below, and warn so it's diagnosable from device logs.
+        console.warn('[flowkit] main.type=tabs but 0 visible tabs — falling back to children');
+        content = children ?? null;
       }
     } else {
       const vis = visibleScreens(config, 'main', registryKeys, hasTemplate);

@@ -16,8 +16,7 @@ export function screenRender(config, entry, registryKeys, hasTemplate) {
     return { mode: 'skip', screenId };
   }
   if (def && def.kind === 'sdui') {
-    const template = def.template || (bundled ? true : null);
-    if (template) return { mode: 'sdui', screenId, template: def.template || null };
+    if (def.template || bundled) return { mode: 'sdui', screenId, template: def.template || null };
     return { mode: 'skip', screenId };
   }
   // No explicit def: fall back to a bundled sdui template if one exists.

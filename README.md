@@ -55,12 +55,16 @@ be spliced into that router by hand.
   the active tab (Provider-held state) without re-entering the flow sequencer.
 - If `flows.main.type !== 'tabs'`, `main`'s first visible screen renders the
   same way any other flow's screen would.
-- **`children` is now a fallback only** — rendered solely when `main` (and no
-  tabs) resolves to zero visible screens. A host that already passes
-  `children` and has any usable `main`/tabs config now gets the full-flow
-  render instead of `children`; that's the intended v0.5.0 fix, not a
-  regression. A host with an empty/absent `main` config keeps working exactly
-  as before (renders `children`), so upgrading never crashes an app.
+- **`children` is now a fallback only** — rendered solely when `main` resolves
+  to zero visible screens, in *both* the tabs and non-tabs branches (a tabs
+  shell with 0 visible tabs — all hidden, all native refs missing from the
+  registry, or config typo — also falls back to `children` rather than
+  rendering nothing, and logs a `console.warn` so the fallback is
+  diagnosable). A host that already passes `children` and has any usable
+  `main`/tabs config now gets the full-flow render instead of `children`;
+  that's the intended v0.5.0 fix, not a regression. A host with an
+  empty/absent `main` config keeps working exactly as before (renders
+  `children`), so upgrading never crashes an app.
 - Native registry components already received `props.flowkit`; they now also
   receive `props.state` (the same `state` prop passed to `FlowKitProvider`,
   used for SDUI `@S.*` bindings) so a shared app-state object can drive both
