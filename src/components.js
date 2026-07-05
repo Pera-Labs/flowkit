@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, Switch } from 'react-native';
-import { resolveTokens } from './resolve.js';
+import { resolveTokens, screenBackground } from './resolve.js';
 import { resolveData } from './bind.js';
 import { evalWhen } from './when.js';
 import { containerStyle, freqChartBars, signalChainItems, buttonDims, formatVersionLabel } from './styles.js';
@@ -325,7 +325,11 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
 }
 
 export function SduiScreen({ template, theme, onAction, data = EMPTY_DATA }) {
-  return <View style={{ flex: 1, backgroundColor: theme.bg }}><Node node={template} theme={theme} onAction={onAction} data={data} /></View>;
+  return (
+    <View style={{ flex: 1, backgroundColor: screenBackground(template, theme) }}>
+      <Node node={template} theme={theme} onAction={onAction} data={data} />
+    </View>
+  );
 }
 
 // v0.5.0 — bottom tab bar for `flows.main.type === 'tabs'`. `tabs` is an
