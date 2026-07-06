@@ -63,7 +63,8 @@ function StarRating({ max, value, color, emptyColor, onRate }) {
 // needed (e.g. "tap anywhere to continue").
 function wrapPressable(content, n, onAction) {
   if (!n.action) return content;
-  return <TouchableOpacity activeOpacity={0.85} onPress={() => onAction(n.action, n.payload)}>{content}</TouchableOpacity>;
+  return <TouchableOpacity activeOpacity={0.85} onPress={() => onAction(n.action, n.payload)}
+    accessible accessibilityRole="button" accessibilityLabel={String(n.a11yLabel ?? n.action)} testID={n.testID || n.action}>{content}</TouchableOpacity>;
 }
 
 function Node({ node, theme, onAction, data = EMPTY_DATA }) {
@@ -132,6 +133,7 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
       const variantStyle = buttonDims(n.variant || n.size);
       return (
         <TouchableOpacity onPress={() => onAction(n.action)} activeOpacity={0.85}
+          accessible accessibilityRole="button" accessibilityLabel={String(n.label ?? n.icon ?? '')} testID={n.testID || n.action}
           style={[{ minHeight: 52, borderRadius: theme.radius, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 20, backgroundColor: n.style?.backgroundColor || theme.accent }, variantStyle, n.style]}>
           {n.icon && !n.label ? <Text style={{ fontSize: 18, color: n.style?.color || theme.accentText }}>{String(n.icon)}</Text>
             : <Text style={{ color: n.style?.color || theme.accentText, fontSize: 17, fontWeight: '700' }}>{String(n.label ?? '')}</Text>}
@@ -142,6 +144,7 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
       <ScrollView style={{ maxHeight: 420 }}>
         {(n.items || []).map((it, i) => (
           <TouchableOpacity key={it.id || i} activeOpacity={0.85} onPress={() => onAction(n.action, it)}
+            accessible accessibilityRole="button" accessibilityLabel={String(it.label ?? it.id ?? '')} testID={it.testID || it.id}
             style={{ backgroundColor: theme.card, borderRadius: theme.radius, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             {it.emoji ? <Text style={{ fontSize: 24 }}>{it.emoji}</Text> : null}
             <View style={{ flex: 1 }}>
