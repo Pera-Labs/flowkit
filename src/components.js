@@ -67,7 +67,7 @@ function wrapPressable(content, n, onAction) {
     accessible accessibilityRole="button" accessibilityLabel={String(n.a11yLabel ?? n.action)} testID={n.testID || n.action}>{content}</TouchableOpacity>;
 }
 
-function Node({ node, theme, onAction, data = EMPTY_DATA }) {
+function Node({ node, theme, onAction, data = EMPTY_DATA, root = false }) {
   if (!node || typeof node !== 'object') return null;
   if (node.when !== undefined && !evalWhen(node.when, data)) return null;
 
@@ -87,9 +87,13 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
   const n = resolveData(resolveTokens(node, theme), data);
   switch (n.type) {
     case 'stack': {
-      // top-level screen stack fills; nested stacks size to content
+      // Only the ROOT screen stack fills the screen; nested stacks size to
+      // content (a nested stack that explicitly sets style.flex still gets it
+      // via `base`). Giving every nested stack flex:1 collapses siblings —
+      // on deeply-nested dark screens (diff/prob/orig_chain) that squeezed the
+      // text rows to zero height so only the graphics showed.
       const base = containerStyle({ props: n.props, style: n.style });
-      return wrapPressable(<View style={[{ flex: 1 }, base]}>{kids(n.children, theme, onAction, data)}</View>, n, onAction);
+      return wrapPressable(<View style={[root ? { flex: 1 } : null, base]}>{kids(n.children, theme, onAction, data)}</View>, n, onAction);
     }
     case 'row': {
       const base = containerStyle({ row: true, props: { align: 'center', ...(n.props || {}) }, style: n.style });
@@ -330,7 +334,7 @@ function Node({ node, theme, onAction, data = EMPTY_DATA }) {
 export function SduiScreen({ template, theme, onAction, data = EMPTY_DATA }) {
   return (
     <View style={{ flex: 1, backgroundColor: screenBackground(template, theme) }}>
-      <Node node={template} theme={theme} onAction={onAction} data={data} />
+      <Node node={template} root theme={theme} onAction={onAction} data={data} />
     </View>
   );
 }
