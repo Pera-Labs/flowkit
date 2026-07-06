@@ -61,9 +61,12 @@ function StarRating({ max, value, color, emptyColor, onRate }) {
 // A container node (stack/row/card) that carries an `action` becomes
 // tap-advance: the whole block is pressable, no bespoke per-screen handler
 // needed (e.g. "tap anywhere to continue").
-function wrapPressable(content, n, onAction) {
+function wrapPressable(content, n, onAction, style) {
   if (!n.action) return content;
-  return <TouchableOpacity activeOpacity={0.85} onPress={() => onAction(n.action, n.payload)}
+  // `style` lets a filling container (e.g. a root "tap anywhere" stack) pass
+  // flex:1 to the TouchableOpacity itself — without it the wrapper is
+  // content-sized and collapses to a zero-height hit area, so taps never fire.
+  return <TouchableOpacity style={style} activeOpacity={0.85} onPress={() => onAction(n.action, n.payload)}
     accessible accessibilityRole="button" accessibilityLabel={String(n.a11yLabel ?? n.action)} testID={n.testID || n.action}>{content}</TouchableOpacity>;
 }
 
@@ -93,7 +96,7 @@ function Node({ node, theme, onAction, data = EMPTY_DATA, root = false }) {
       // on deeply-nested dark screens (diff/prob/orig_chain) that squeezed the
       // text rows to zero height so only the graphics showed.
       const base = containerStyle({ props: n.props, style: n.style });
-      return wrapPressable(<View style={[root ? { flex: 1 } : null, base]}>{kids(n.children, theme, onAction, data)}</View>, n, onAction);
+      return wrapPressable(<View style={[root ? { flex: 1 } : null, base]}>{kids(n.children, theme, onAction, data)}</View>, n, onAction, root ? { flex: 1 } : null);
     }
     case 'row': {
       const base = containerStyle({ row: true, props: { align: 'center', ...(n.props || {}) }, style: n.style });
