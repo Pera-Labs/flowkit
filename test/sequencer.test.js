@@ -103,7 +103,24 @@ test('gotoScreen: unknown screenId -> null', () => {
 });
 test('gotoScreen: hidden screen still resolves (explicit jump overrides visibility filter)', () => {
   const c = cfg({ screens: { s2: { kind: 'sdui', hidden: true, template: { type: 'stack' } } } });
-  assert.deepEqual(gotoScreen(c, 's2', OPTS.registryKeys, OPTS.hasTemplate), { flowId: 'onboarding', screenId: 's2', index: 1 });
+  // s2 is hidden -> vis is ['s1','g1']. gotoScreen renders s2 but returns an
+  // index RELATIVE TO vis (0, i.e. sitting "before" g1) so a following flow.next
+  // lands on g1 (the next visible screen) — NOT the raw flow.screens index (1),
+  // which would overshoot vis.length in advance() and prematurely followEnd.
+  assert.deepEqual(gotoScreen(c, 's2', OPTS.registryKeys, OPTS.hasTemplate), { flowId: 'onboarding', screenId: 's2', index: 0 });
+});
+test('gotoScreen→flow.next: from a hidden screen advances to the next VISIBLE screen (not followEnd)', () => {
+  const c = cfg({ screens: { s2: { kind: 'sdui', hidden: true, template: { type: 'stack' } } } });
+  const at = gotoScreen(c, 's2', OPTS.registryKeys, OPTS.hasTemplate); // { onboarding, s2, index:0 }
+  const r = advance({ config: c, state: { completed: {} }, at, action: 'flow.next', ...OPTS });
+  assert.deepEqual(r.next, { flowId: 'onboarding', screenId: 'g1', index: 1 }); // g1, not a premature flow-end
+});
+test('gotoScreen: hidden screen that is LAST -> flow.next triggers followEnd', () => {
+  const c = cfg({ flows: { onboarding: { enabled: true, screens: ['s1', 's2'], endAction: 'flow.goto:paywall' } }, screens: { s2: { kind: 'sdui', hidden: true, template: { type: 'stack' } } } });
+  const at = gotoScreen(c, 's2', OPTS.registryKeys, OPTS.hasTemplate); // s2 hidden+last -> index vis.length-1 = 0
+  assert.deepEqual(at, { flowId: 'onboarding', screenId: 's2', index: 0 });
+  const r = advance({ config: c, state: { completed: {} }, at, action: 'flow.next', ...OPTS });
+  assert.equal(r.next.flowId, 'paywall'); // no visible screen after -> followEnd -> paywall
 });
 test('gotoScreen: native screen whose ref is missing from the registry -> null', () => {
   assert.equal(gotoScreen(cfg(), 'g1', [], OPTS.hasTemplate), null);

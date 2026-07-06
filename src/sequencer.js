@@ -70,7 +70,17 @@ export function gotoScreen(config, screenId, registryKeys, hasTemplate) {
     if (!def) return null;
     if (def.kind === 'native' && !reg.has(def.ref)) return null;
     if (def.kind === 'sdui' && !(def.template || (hasTemplate && hasTemplate(screenId)))) return null;
-    return { flowId, screenId, index: flow.screens.indexOf(screenId) };
+    // Hidden/filtered screen: render it (explicit jump wins), but pick an index
+    // relative to `vis` — NOT the raw flow.screens index — so a following
+    // `flow.next` lands on the next VISIBLE screen. A raw index compared against
+    // `vis.length` in advance() overshoots (prematurely triggering followEnd)
+    // whenever an earlier screen was filtered out of `vis`.
+    const rawPos = flow.screens.indexOf(screenId);
+    let index = vis.length - 1; // no visible screen after this one -> flow.next -> followEnd
+    for (let k = 0; k < vis.length; k++) {
+      if (flow.screens.indexOf(vis[k]) > rawPos) { index = k - 1; break; }
+    }
+    return { flowId, screenId, index };
   }
   return null;
 }
