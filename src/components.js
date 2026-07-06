@@ -118,7 +118,15 @@ function Node({ node, theme, onAction, data = EMPTY_DATA, root = false }) {
         </View>
       );
     }
-    case 'text': return <Text style={n.style}>{String(n.text ?? '')}</Text>;
+    case 'text': {
+      // Guarantee content height. A `text` node with `flex: 1` (common for the
+      // stretching label in a row) can collapse to zero height inside certain
+      // nested flex parents — the glyphs render but clip to nothing (dark
+      // screens like diff/prob looked "blank" for this reason). minHeight tied
+      // to fontSize keeps the line visible without altering normal text.
+      const fsz = (n.style && Number(n.style.fontSize)) || 14;
+      return <Text style={[{ minHeight: Math.ceil(fsz * 1.3) }, n.style]}>{String(n.text ?? '')}</Text>;
+    }
     case 'image': return <Image source={{ uri: n.src }} style={[{ width: '100%', height: 220, borderRadius: theme.radius }, n.style]} resizeMode="cover" />;
     case 'spacer': return <View style={{ height: n.size || 16 }} />;
     case 'badge': return <View style={[{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }, n.style]}><Text style={{ color: n.style?.color || theme.accentText, fontWeight: '800', fontSize: 12 }}>{String(n.text ?? '')}</Text></View>;
