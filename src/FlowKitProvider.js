@@ -77,7 +77,7 @@ function builtinOpenLink(url) {
   }
 }
 
-export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, state, catalogs, dataSources, appInfo, children }) {
+export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, theme, screens = {}, actions = {}, defaultConfig, state, catalogs, dataSources, appInfo, initialScreen, children }) {
   const th = { ...DEFAULT_THEME, ...(theme || {}) };
   const actionsRef = useRef(actions);
   const screensRef = useRef(screens);
@@ -114,6 +114,21 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       const config = await loadInitialConfig({ appId, storage: AsyncStorage, defaultConfig: defaultConfig || DEFAULT_CONFIG(appId) });
       stateRef.current = fkState;
       let entry = computeEntry({ config, state: fkState, registryKeys, hasTemplate });
+      // initialScreen (v0.6.7) — deterministic deep-link entry, resolved as
+      // part of the SAME boot pass that produces `entry`, not a post-mount
+      // dispatch. A post-mount `nav.goto` races this effect: on a fresh
+      // state (onboarding not completed) computeEntry above already picked
+      // 'onboarding', that renders for one frame, and a later dispatch call
+      // would have to fight/overwrite it — flaky in real apps, catastrophic
+      // in an iframe host swapping `src` on every card (each load is cold).
+      // Bypasses onboarding/paywall gating on purpose: an explicit deep-link
+      // target means the host (e.g. a screenshot studio) wants THAT screen,
+      // full stop. Falls through to computeEntry's normal result when the
+      // id doesn't resolve (typo, unregistered id) — never a dead screen.
+      if (initialScreen) {
+        const forced = gotoScreen(config, initialScreen, registryKeys, hasTemplate);
+        if (forced) entry = forced;
+      }
       // v0.4.0: minAppVersion gating — server-driven "please update" flow, fail-open
       // (missing/unreadable version, missing `gate` flow, or no visible gate screens
       // -> proceed as normal, never blocks the app on a malformed config).

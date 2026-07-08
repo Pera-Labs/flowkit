@@ -129,3 +129,31 @@ test('gotoScreen: sdui screen with no explicit template and no bundled default -
   const c = cfg({ flows: { main: { enabled: true, type: 'app', screens: ['orphan'] } } });
   assert.equal(gotoScreen(c, 'orphan', OPTS.registryKeys, () => false), null);
 });
+
+// initialScreen (v0.6.7, FlowKitProvider boot) — the composition is
+// `entry = computeEntry(...); if (initialScreen) { const forced =
+// gotoScreen(...); if (forced) entry = forced; }`. These tests exercise
+// that exact composition against sequencer's pure functions (FlowKitProvider
+// itself isn't node:test-able — needs a React/RN runtime, see its header
+// comment) so the deep-link-bypasses-onboarding contract stays covered.
+function resolveEntry(config, state, initialScreen, opts = OPTS) {
+  let entry = computeEntry({ config, state, ...opts });
+  if (initialScreen) {
+    const forced = gotoScreen(config, initialScreen, opts.registryKeys, opts.hasTemplate);
+    if (forced) entry = forced;
+  }
+  return entry;
+}
+test('initialScreen: fresh state (onboarding not completed) still resolves straight to the target screen', () => {
+  const c = cfg({ flows: { main: { enabled: true, type: 'app', screens: ['home'] } }, screens: { home: { kind: 'sdui', template: { type: 'stack' } } } });
+  assert.deepEqual(resolveEntry(c, { completed: {} }, 'home'), { flowId: 'main', screenId: 'home', index: 0 });
+});
+test('initialScreen: bypasses onboarding-gate for a screen defined inside another flow', () => {
+  assert.deepEqual(resolveEntry(cfg(), { completed: {} }, 'pw'), { flowId: 'paywall', screenId: 'pw', index: 0 });
+});
+test('initialScreen: unresolved id (typo/unregistered) falls back to computeEntry, never a dead screen', () => {
+  assert.deepEqual(resolveEntry(cfg(), { completed: {} }, 'nope'), { flowId: 'onboarding', screenId: 's1', index: 0 });
+});
+test('initialScreen: absent -> behaves exactly like plain computeEntry', () => {
+  assert.deepEqual(resolveEntry(cfg(), { completed: { onboarding: true } }, undefined), { flowId: 'main' });
+});
