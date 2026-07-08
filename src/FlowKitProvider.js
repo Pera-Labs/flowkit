@@ -111,7 +111,20 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
     (async () => {
       let fkState = { completed: {} };
       try { const raw = await AsyncStorage.getItem(`fk.${appId}.state`); if (raw) fkState = JSON.parse(raw) || fkState; } catch {}
-      const config = await loadInitialConfig({ appId, storage: AsyncStorage, defaultConfig: defaultConfig || DEFAULT_CONFIG(appId) });
+      const cachedOrDefault = await loadInitialConfig({ appId, storage: AsyncStorage, defaultConfig: defaultConfig || DEFAULT_CONFIG(appId) });
+      // v0.6.9 — every cold start races a bounded (4s) live fetch against the
+      // cache/default so a config edit shows up THIS launch, not "next cold
+      // start". Timeout/error/304 falls back to cachedOrDefault — never
+      // blocks boot past 4s, never throws.
+      let config = cachedOrDefault;
+      try {
+        const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
+        const fresh = await Promise.race([
+          refreshConfig({ appId, endpoint, storage: AsyncStorage, currentRevision: cachedOrDefault.revision || 0 }),
+          timeout,
+        ]);
+        if (fresh && fresh.updated && fresh.config) config = fresh.config;
+      } catch {}
       stateRef.current = fkState;
       let entry = computeEntry({ config, state: fkState, registryKeys, hasTemplate });
       // initialScreen (v0.6.7) — deterministic deep-link entry, resolved as
@@ -148,8 +161,6 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
       const tid = entryTabId(entry, tabScreens(config, registryKeys, hasTemplate));
       if (tid) setActiveTab(tid);
       if (!dead) setBoot({ config, entry });
-      // Background refresh — writes ONLY to cache; applied on next cold start, never mid-run.
-      refreshConfig({ appId, endpoint, storage: AsyncStorage, currentRevision: config.revision || 0 });
     })();
     return () => { dead = true; };
   }, [appId]);
