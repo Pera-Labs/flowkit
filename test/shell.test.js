@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { screenRender, tabScreens } from '../src/shell.js';
+import { screenRender, tabScreens, effectiveTemplate } from '../src/shell.js';
 
 function cfg(overrides) {
   return {
@@ -88,4 +88,75 @@ test('tabScreens: main flow type !== "tabs" -> not a tab shell, returns []', () 
 test('tabScreens: missing main flow -> []', () => {
   const ids = tabScreens({ flows: {} }, [], () => false);
   assert.deepEqual(ids, []);
+});
+
+// ---- effectiveTemplate (Studio v2 variants) ----
+
+test('effectiveTemplate: no variants array -> falls back to screen.template unchanged', () => {
+  const screen = { kind: 'sdui', template: { type: 'text', text: 'base' } };
+  assert.deepEqual(effectiveTemplate(screen), { type: 'text', text: 'base' });
+});
+
+test('effectiveTemplate: variants present, activeVariant matches -> returns that variant template', () => {
+  const screen = {
+    kind: 'sdui', template: { type: 'text', text: 'base' },
+    variants: [
+      { id: 'a', name: 'A', template: { type: 'text', text: 'base' } },
+      { id: 'b', name: 'B', template: { type: 'text', text: 'variant b' } },
+    ],
+    activeVariant: 'b',
+  };
+  assert.deepEqual(effectiveTemplate(screen), { type: 'text', text: 'variant b' });
+});
+
+test('effectiveTemplate: activeVariant set but does not match any variant id -> falls back to screen.template', () => {
+  const screen = {
+    kind: 'sdui', template: { type: 'text', text: 'base' },
+    variants: [{ id: 'a', name: 'A', template: { type: 'text', text: 'a' } }],
+    activeVariant: 'ghost',
+  };
+  assert.deepEqual(effectiveTemplate(screen), { type: 'text', text: 'base' });
+});
+
+test('effectiveTemplate: variants array present but no activeVariant -> falls back to screen.template', () => {
+  const screen = {
+    kind: 'sdui', template: { type: 'text', text: 'base' },
+    variants: [{ id: 'a', name: 'A', template: { type: 'text', text: 'a' } }],
+  };
+  assert.deepEqual(effectiveTemplate(screen), { type: 'text', text: 'base' });
+});
+
+test('effectiveTemplate: matched variant has no template -> falls back to screen.template', () => {
+  const screen = {
+    kind: 'sdui', template: { type: 'text', text: 'base' },
+    variants: [{ id: 'a', name: 'A' }],
+    activeVariant: 'a',
+  };
+  assert.deepEqual(effectiveTemplate(screen), { type: 'text', text: 'base' });
+});
+
+test('effectiveTemplate: null/undefined screen -> undefined, never throws', () => {
+  assert.doesNotThrow(() => effectiveTemplate(null));
+  assert.equal(effectiveTemplate(null), undefined);
+  assert.equal(effectiveTemplate(undefined), undefined);
+});
+
+test('screenRender: variants + activeVariant resolves to the live variant template', () => {
+  const config = {
+    schemaVersion: 1, appId: 'x', revision: 0,
+    flows: { main: { enabled: true, screens: ['s1'] } },
+    screens: {
+      s1: {
+        kind: 'sdui', template: { type: 'text', text: 'original' },
+        variants: [
+          { id: 'orig', name: 'Original', template: { type: 'text', text: 'original' } },
+          { id: 'v2', name: 'Variant 2', template: { type: 'text', text: 'live' } },
+        ],
+        activeVariant: 'v2',
+      },
+    },
+  };
+  const r = screenRender(config, { flowId: 'main', screenId: 's1' }, [], () => false);
+  assert.equal(r.mode, 'sdui');
+  assert.deepEqual(r.template, { type: 'text', text: 'live' });
 });

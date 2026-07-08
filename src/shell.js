@@ -1,5 +1,20 @@
 import { visibleScreens } from './sequencer.js';
 
+// Pure helper: resolve which template a screen def should actually render.
+// Screens may carry a `variants` array (Studio v2 A/B authoring) plus an
+// `activeVariant` id pointing at the live one. When present and the id
+// resolves, that variant's template wins; otherwise (no variants array, no
+// activeVariant, or an activeVariant that doesn't match any variant id) we
+// fall back to the screen's own `template` — byte-for-byte the old behavior.
+export function effectiveTemplate(screen) {
+  if (!screen) return undefined;
+  if (Array.isArray(screen.variants) && screen.activeVariant) {
+    const v = screen.variants.find((v) => v && v.id === screen.activeVariant);
+    if (v && v.template) return v.template;
+  }
+  return screen.template;
+}
+
 // Pure render-decision helper: given the current entry (flowId+screenId),
 // decide how to render it. Never throws — unknown/missing screens resolve
 // to 'skip' so the caller can fail-safe (e.g. advance to the next visible
@@ -16,7 +31,8 @@ export function screenRender(config, entry, registryKeys, hasTemplate) {
     return { mode: 'skip', screenId };
   }
   if (def && def.kind === 'sdui') {
-    if (def.template || bundled) return { mode: 'sdui', screenId, template: def.template || null };
+    const tpl = effectiveTemplate(def);
+    if (tpl || bundled) return { mode: 'sdui', screenId, template: tpl || null };
     return { mode: 'skip', screenId };
   }
   // No explicit def: fall back to a bundled sdui template if one exists.
