@@ -47,3 +47,16 @@ export function tabScreens(config, registryKeys, hasTemplate) {
   if (!main || main.type !== 'tabs') return [];
   return visibleScreens(config, 'main', registryKeys, hasTemplate);
 }
+
+// v0.6.8 — given a resolved nav entry (boot entry after initialScreen override,
+// or a live nav.goto target) and the current tab id list, decide which tab
+// should become active. Returns null when the entry doesn't target a specific
+// `main`-flow tab (e.g. mid-onboarding, or a bare `{flowId:'main'}` with no
+// screenId from computeEntry) — the caller should leave the active tab alone
+// (or fall back to the first tab) in that case. Pure/unit-testable: the actual
+// tab-selection bug (deep-linking to a tab never selected it) lived in
+// FlowKitProvider not calling anything like this at all.
+export function entryTabId(entry, tabIds) {
+  if (!entry || entry.flowId !== 'main' || !entry.screenId) return null;
+  return (tabIds || []).includes(entry.screenId) ? entry.screenId : null;
+}

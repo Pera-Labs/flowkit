@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadInitialConfig, refreshConfig } from './configChain.js';
 import { computeEntry, advance, visibleScreens, gotoScreen } from './sequencer.js';
-import { screenRender, tabScreens } from './shell.js';
+import { screenRender, tabScreens, entryTabId } from './shell.js';
 import { parseAction } from './parseAction.js';
 import { DEFAULT_CONFIG, DEFAULT_SCREENS, DEFAULT_THEME } from './defaults.js';
 import { SduiScreen, TabShell } from './components.js';
@@ -139,6 +139,14 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
           if (vis.length) entry = { flowId: 'gate', screenId: vis[0], index: 0 };
         }
       }
+      // v0.6.8 — deep-linking (initialScreen) to a tab of the `main` tabs
+      // flow must actually select that tab, not just resolve `entry` to it:
+      // the render below picks `activeTab` (falling back to `tabs[0]` when
+      // it doesn't match a live tab id) independently of `entry`, so without
+      // this the boot always rendered the first tab regardless of the
+      // deep-link target.
+      const tid = entryTabId(entry, tabScreens(config, registryKeys, hasTemplate));
+      if (tid) setActiveTab(tid);
       if (!dead) setBoot({ config, entry });
       // Background refresh — writes ONLY to cache; applied on next cold start, never mid-run.
       refreshConfig({ appId, endpoint, storage: AsyncStorage, currentRevision: config.revision || 0 });
@@ -233,6 +241,10 @@ export function FlowKitProvider({ appId, version, endpoint = DEFAULT_ENDPOINT, t
             console.warn('[flowkit] nav.goto: screen not found or unrenderable:', a.arg);
             return b;
           }
+          // Same tab-selection fix as the boot path — a live nav.goto to a
+          // `main` tabs-flow screen must select that tab too.
+          const tid = entryTabId(entryFor, tabScreens(b.config, Object.keys(screensRef.current), hasTemplate));
+          if (tid) setActiveTab(tid);
           return { ...b, entry: entryFor };
         });
         return;

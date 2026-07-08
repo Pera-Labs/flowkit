@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { screenRender, tabScreens, effectiveTemplate } from '../src/shell.js';
+import { screenRender, tabScreens, effectiveTemplate, entryTabId } from '../src/shell.js';
 
 function cfg(overrides) {
   return {
@@ -88,6 +88,31 @@ test('tabScreens: main flow type !== "tabs" -> not a tab shell, returns []', () 
 test('tabScreens: missing main flow -> []', () => {
   const ids = tabScreens({ flows: {} }, [], () => false);
   assert.deepEqual(ids, []);
+});
+
+// ---- entryTabId (v0.6.8 — deep-link-to-tab fix) ----
+
+test('entryTabId: entry targets a live main-flow tab -> that tab id', () => {
+  assert.equal(entryTabId({ flowId: 'main', screenId: 't-native' }, ['t-home', 't-native']), 't-native');
+});
+
+test('entryTabId: entry screenId not among current tab ids -> null (e.g. hidden/unregistered)', () => {
+  assert.equal(entryTabId({ flowId: 'main', screenId: 't-hidden' }, ['t-home', 't-native']), null);
+});
+
+test('entryTabId: entry flowId !== main (mid onboarding/paywall) -> null', () => {
+  assert.equal(entryTabId({ flowId: 'onboarding', screenId: 't-home' }, ['t-home', 't-native']), null);
+});
+
+test('entryTabId: bare {flowId:"main"} with no screenId (normal cold boot via computeEntry) -> null', () => {
+  assert.equal(entryTabId({ flowId: 'main' }, ['t-home', 't-native']), null);
+});
+
+test('entryTabId: null/undefined entry or tab list -> null, never throws', () => {
+  assert.doesNotThrow(() => entryTabId(null, ['t-home']));
+  assert.equal(entryTabId(null, ['t-home']), null);
+  assert.equal(entryTabId({ flowId: 'main', screenId: 't-home' }, null), null);
+  assert.equal(entryTabId(undefined, undefined), null);
 });
 
 // ---- effectiveTemplate (Studio v2 variants) ----

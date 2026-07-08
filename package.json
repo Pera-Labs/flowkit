@@ -1,6 +1,6 @@
 {
   "name": "flowkit",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "description": "Server-driven app flows for React Native (Pera Labs)",
   "main": "src/index.js",
   "type": "module",
